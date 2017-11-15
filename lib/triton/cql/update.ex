@@ -30,6 +30,7 @@ defmodule Triton.CQL.Update do
   defp if_exists(_), do: ""
 
   defp value(nil, _), do: "NULL"
+  defp value(v, :counter), do: v
   defp value(v, {_, _}), do: v
   defp value(v, _) when is_boolean(v), do: "#{v}"
   defp value(v, _) when is_binary(v), do: binary_value(v)
