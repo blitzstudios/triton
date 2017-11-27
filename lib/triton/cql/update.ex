@@ -35,7 +35,7 @@ defmodule Triton.CQL.Update do
   defp value(v, _) when is_boolean(v), do: "#{v}"
   defp value(v, _) when is_binary(v), do: binary_value(v)
   defp value(v, _) when is_atom(v), do: ":#{v}"
-  defp value(%DateTime{} = d, _), do: DateTime.to_unix(d)
+  defp value(%DateTime{} = d, _), do: DateTime.to_unix(d, :millisecond)
   defp value(v, _), do: v
 
   defp binary_value(v) do

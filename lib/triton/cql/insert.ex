@@ -14,7 +14,7 @@ defmodule Triton.CQL.Insert do
   defp field_value(field, _) when is_boolean(field), do: "#{field}"
   defp field_value(field, _) when is_binary(field), do: binary_value(field)
   defp field_value(field, _) when is_atom(field), do: ":#{field}"
-  defp field_value(%DateTime{} = d, _), do: DateTime.to_unix(d)
+  defp field_value(%DateTime{} = d, _), do: DateTime.to_unix(d, :millisecond)
   defp field_value(field, _), do: field
 
   if Mix.env == :prod do
