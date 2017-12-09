@@ -105,7 +105,6 @@ defmodule Triton.Executor do
   defp execute_cql(:streamed, cql, nil, options) do
     with pages <- Xandra.stream_pages!(Triton.Conn, cql, [], [pool: Xandra.Cluster] ++ options) do
       results = pages
-        |> Stream.take(options[:pages] || 1)
         |> Stream.flat_map(fn page -> Enum.to_list(page) |> format_results end)
       {:ok, results}
     end
@@ -115,7 +114,6 @@ defmodule Triton.Executor do
          pages <- Xandra.stream_pages!(Triton.Conn, statement, atom_to_string_keys(prepared), [pool: Xandra.Cluster] ++ options)
     do
       results = pages
-        |> Stream.take(options[:pages] || 1)
         |> Stream.flat_map(fn page -> Enum.to_list(page) |> format_results end)
       {:ok, results}
     end
