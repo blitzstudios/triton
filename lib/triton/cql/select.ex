@@ -28,6 +28,7 @@ defmodule Triton.CQL.Select do
   defp order_by(_), do: ""
 
   defp limit(limit) when is_integer(limit), do: " LIMIT #{limit}"
+  defp limit(limit) when is_atom(limit) and not is_nil(limit), do: " LIMIT :#{limit}"
   defp limit(_), do: ""
 
   defp value(v) when is_binary(v), do: "'#{v}'"

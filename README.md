@@ -4,13 +4,44 @@ Pure Elixir Cassandra ORM built on top of Xandra.
 
 ## Configure Triton
 
+Single Cluster
+
 ```elixir
-config :triton, :xandra,
-  nodes: ["127.0.0.1"],  # your cluster of nodes here
-  pool: Xandra.Cluster,
-  underlying_pool: DBConnection.Poolboy,
-  pool_size: 10,
-  keyspace: "my_keyspace"
+config :triton,
+  clusters: [
+    [
+      conn: Triton.Conn,
+      nodes: ["127.0.0.1"],
+      pool: Xandra.Cluster,
+      underlying_pool: DBConnection.Poolboy,
+      pool_size: 10,
+      keyspace: "my_keyspace"
+    ]
+  ]
+```
+
+Multi-Cluster
+
+```elixir
+config :triton,
+  clusters: [
+    [
+      conn: Cluster1.Conn,
+      nodes: ["127.0.0.1"],
+      pool: Xandra.Cluster,
+      underlying_pool: DBConnection.Poolboy,
+      pool_size: 10,
+      keyspace: "cluster_1_keyspace"
+    ],
+    [
+      conn: Cluster2.Conn,
+      nodes: ["127.0.0.1"],
+      pool: Xandra.Cluster,
+      underlying_pool: DBConnection.Poolboy,
+      pool_size: 10,
+      keyspace: "cluster_2_keyspace"
+    ]
+  ]
 ```
 
 ## Defining a Keyspace
@@ -20,7 +51,7 @@ First, define your keyspace.  Triton will create the keyspace for your at compil
 Currently Triton only supports a single Keyspace.
 
 ```elixir
-defmodule Schema.Keyspace do
+defmodule Schema.Keyspace, conn: Triton.Conn do
   use Triton.Keyspace
 
   keyspace :my_keyspace do
@@ -42,7 +73,7 @@ defmodule Schema.User do
   require Schema.Keyspace  
   use Triton.Table
 
-  table :users do
+  table :users, keyspace: Schema.Keyspace do
     field :user_id, :bigint, validators: [presence: true]  # validators using vex
     field :username, :text
     field :display_name, :text
@@ -177,7 +208,17 @@ User
 |> prepared(user_id: user_id)
 |> delete(:all)  # here :all refers to all fields
 |> where(user_id: :user_id)
-|> User.delete
+|> User.del
+```
+
+Lets delete that same user, with consistency: :quorum
+
+```elixir
+User
+|> prepared(user_id: user_id)
+|> delete(:all)  # here :all refers to all fields
+|> where(user_id: :user_id)
+|> User.del(consistency: :quorum)
 ```
 
 Batch update 4 users in 1 Cassandra request.

@@ -6,12 +6,13 @@ defmodule Triton.Table do
     end
   end
 
-  defmacro table(name, [do: block]) do
+  defmacro table(name, [keyspace: keyspace], [do: block]) do
     quote do
       outer = __MODULE__
 
       defmodule Metadata do
         @metadata []
+
         Module.put_attribute(__MODULE__, :metadata, [
           { :__table__, unquote(name) },
           { :__schema_module__, outer }
@@ -28,6 +29,7 @@ defmodule Triton.Table do
         unquote(block)
 
         Module.put_attribute(__MODULE__, :table, [
+          { :__keyspace__, unquote(keyspace) },
           { :__name__, unquote(name) },
           { :__fields__, Module.get_attribute(__MODULE__, :fields) }
           | Module.get_attribute(__MODULE__, :table)

@@ -5,17 +5,15 @@ defmodule Triton do
   def start(_type, _args) do
     import Supervisor.Spec, warn: false
 
-    children = [
+    children = for config <- Application.get_env(:triton, :clusters, []), into: [] do
       worker(Xandra, [[
-        {:name, Triton.Conn},
-        {:after_connect, fn(conn) -> Xandra.execute(conn, "USE #{Application.get_env(:triton, :xandra)[:keyspace]}") end}
-        | Application.get_env(:triton, :xandra)
-      ]]),
-    ]
+        {:name, config[:conn]},
+        {:after_connect, fn(conn) -> Xandra.execute(conn, "USE #{config[:keyspace]}") end}
+        | config
+      ]], [id: make_ref()])
+    end
 
-    # See http://elixir-lang.org/docs/stable/elixir/Supervisor.html
-    # for other strategies and supported options
-    opts = [strategy: :one_for_one, name: Data.Supervisor]
+    opts = [strategy: :one_for_one, name: Triton.Supervisor]
     Supervisor.start_link(children, opts)
   end
 end

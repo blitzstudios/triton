@@ -1,8 +1,9 @@
 defmodule Triton.Setup.Keyspace do
   def setup(blueprint) do
     try do
+      node = Application.get_env(:triton, :clusters) |> Enum.find(&(&1[:conn] == blueprint.__conn__))
       statement = build_cql(blueprint |> Map.delete(:__struct__))
-      {:ok, conn} = Xandra.start_link(nodes: [Application.get_env(:triton, :xandra)[:nodes] |> Enum.random])
+      {:ok, conn} = Xandra.start_link(nodes: [node[:nodes] |> Enum.random])
       Xandra.execute!(conn, statement, _params = [])
     rescue
       err -> IO.inspect(err)
