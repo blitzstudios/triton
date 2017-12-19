@@ -28,7 +28,8 @@ defmodule Triton.Mixfile do
     [
       {:xandra, "~> 0.9"},
       {:poolboy, "~> 1.5"},
-      {:vex, "~> 0.6"}
+      {:vex, "~> 0.6"},
+      {:ex_doc, ">= 0.0.0", only: :dev}
     ]
   end
 
