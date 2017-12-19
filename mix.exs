@@ -1,16 +1,21 @@
 defmodule Triton.Mixfile do
   use Mix.Project
 
+  @version "0.1.0"
+  @url "https://github.com/blitzstudios/triton"
+  @maintainers ["Weixi Yen"]
+
   def project do
-    [app: :triton,
-     version: "0.1.0",
-     build_path: "../../_build",
-     config_path: "../../config/config.exs",
-     deps_path: "../../deps",
-     lockfile: "../../mix.lock",
+    [name: "Triton",
+     app: :triton,
+     version: @version,
+     source_url: @url,
      elixir: "~> 1.4",
+     description: "Pure Elixir Cassandra ORM built on top of Xandra.",
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
+     package: package(),
+     homepage_url: @url,
      deps: deps()]
   end
 
@@ -24,6 +29,15 @@ defmodule Triton.Mixfile do
       {:xandra, "~> 0.9"},
       {:poolboy, "~> 1.5"},
       {:vex, "~> 0.6"}
+    ]
+  end
+
+  defp package do
+    [
+      maintainers: @maintainers,
+      licenses: ["MIT"],
+      links: %{github: @url},
+      files: ~w(lib) ++ ~w(CHANGELOG.md LICENSE mix.exs README.md)
     ]
   end
 end

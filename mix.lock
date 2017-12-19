@@ -1,0 +1,5 @@
+%{"connection": {:hex, :connection, "1.0.4", "a1cae72211f0eef17705aaededacac3eb30e6625b04a6117c1b2db6ace7d5976", [:mix], [], "hexpm"},
+  "db_connection": {:hex, :db_connection, "1.1.2", "2865c2a4bae0714e2213a0ce60a1b12d76a6efba0c51fbda59c9ab8d1accc7a8", [:mix], [{:connection, "~> 1.0.2", [hex: :connection, repo: "hexpm", optional: false]}, {:poolboy, "~> 1.5", [hex: :poolboy, repo: "hexpm", optional: true]}, {:sbroker, "~> 1.0", [hex: :sbroker, repo: "hexpm", optional: true]}], "hexpm"},
+  "poolboy": {:hex, :poolboy, "1.5.1", "6b46163901cfd0a1b43d692657ed9d7e599853b3b21b95ae5ae0a777cf9b6ca8", [:rebar], [], "hexpm"},
+  "vex": {:hex, :vex, "0.6.0", "4e79b396b2ec18cd909eed0450b19108d9631842598d46552dc05031100b7a56", [:mix], [], "hexpm"},
+  "xandra": {:hex, :xandra, "0.9.0", "bba12d0398bff685d513148627e140d26109fac5fb14830fae2bd292c52cfe52", [:mix], [{:db_connection, "~> 1.0", [hex: :db_connection, repo: "hexpm", optional: false]}], "hexpm"}}
