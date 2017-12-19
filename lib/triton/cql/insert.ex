@@ -17,9 +17,7 @@ defmodule Triton.CQL.Insert do
   defp field_value(%DateTime{} = d, _), do: DateTime.to_unix(d, :millisecond)
   defp field_value(field, _), do: field
 
-  if Mix.env == :prod do
-    defp if_not_exists(flag) when flag == true, do: " IF NOT EXISTS"
-  end
+  defp if_not_exists(flag) when flag == true, do: " IF NOT EXISTS"
   defp if_not_exists(_), do: ""
 
   defp binary_value(v) do

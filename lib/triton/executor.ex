@@ -84,26 +84,11 @@ defmodule Triton.Executor do
   Returns {:ok, results}
           {:error, error}
   """
-  if Mix.env == :prod do
-
-    def execute(query, options \\ []) do
-      with {:ok, query}     <- Triton.Validate.coerce(query),
-           {:ok, type, cql} <- build_cql(query),
-           {:ok, results}   <- execute_cql(conn_for(query), type, cql, query[:prepared], options),
-      do: {:ok, results}
-    end
-
-  else
-
-    def execute(query, options \\ []) do
-      options = options |> Keyword.delete_first(:consistency)
-
-      with {:ok, query}     <- Triton.Validate.coerce(query),
-           {:ok, type, cql} <- build_cql(query),
-           {:ok, results}   <- execute_cql(conn_for(query), type, cql, query[:prepared], options),
-      do: {:ok, results}
-    end
-
+  def execute(query, options \\ []) do
+    with {:ok, query}     <- Triton.Validate.coerce(query),
+         {:ok, type, cql} <- build_cql(query),
+         {:ok, results}   <- execute_cql(conn_for(query), type, cql, query[:prepared], options),
+    do: {:ok, results}
   end
 
   defp build_cql(query) do
