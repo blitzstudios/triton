@@ -4,17 +4,14 @@ defmodule Triton.Executor do
       def all(query, options \\ []) do
         case Triton.Executor.execute(query, options) do
           {:error, err} -> {:error, err.message}
-          results -> results
+          {:ok, results} -> {:ok, transform_results(query, results)}
         end
       end
 
-      @doc """
-      Use this option if you are trying to a lot of data...
-      """
       def streamed(query, options \\ []) do
         case Triton.Executor.execute([{:streamed, true} | query], options) do
           {:error, err} -> {:error, err.message}
-          results -> results
+          {:ok, results} -> {:ok, transform_results(query, results)}
         end
       end
 
@@ -53,6 +50,17 @@ defmodule Triton.Executor do
         end
       end
 
+      defp transform_results(query, results) when is_list(results) do
+        for result <- results do
+          for {k, v} <- result, into: %{} do
+            case query[:__schema__].__fields__[k][:opts][:transform] do
+              nil -> {k, v}
+              func -> {k, func.(v)}
+            end
+          end
+        end
+      end
+      defp transform_results(_, results), do: results
     end
   end
 
