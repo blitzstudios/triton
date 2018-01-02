@@ -1,5 +1,9 @@
 # Changelog
 
+## v 0.1.4
+
+Added ability to define a transform function on any field (used for select statements)
+
 ## v 0.1.3
 
 Fix DateTimes and change how streams work
