@@ -14,8 +14,8 @@ defmodule Triton.Validate do
   end
 
   def validate(:insert, query, schema) do
-    data = query[:prepared] && query[:prepared] ++ Enum.filter_map(query[:insert], fn {_, v} -> !is_atom(v) end, fn x -> x end) || query[:insert]
-    vex = schema |> Enum.filter_map(fn({_, opts}) -> opts[:opts][:validators] end, fn {field, opts} -> {field, opts[:opts][:validators]} end)
+    data = query[:prepared] && query[:prepared] ++ (query[:insert] |> Enum.filter(fn {_, v} -> !is_atom(v) end)) || query[:insert]
+    vex = schema |> Enum.filter(fn({_, opts}) -> opts[:opts][:validators] end) |> Enum.map(fn {field, opts} -> {field, opts[:opts][:validators]} end)
     case Vex.errors(data ++ [_vex: vex]) do
       [] -> {:ok, query}
       err_list -> {:error, err_list |> Triton.Error.vex_error}
