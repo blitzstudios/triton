@@ -2,6 +2,8 @@
 
 Pure Elixir Cassandra ORM built on top of Xandra.
 
+[Blog Post](https://blog.sleeperbot.com/triton-a-cassandra-orm-for-elixir-882dd8f11383)
+
 ## Configure Triton
 
 Single Cluster
