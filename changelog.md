@@ -1,5 +1,9 @@
 # Changelog
 
+## v 0.1.5
+
+Added field validation to updates.
+
 ## v 0.1.4
 
 Added ability to define a transform function on any field (used for select statements)
