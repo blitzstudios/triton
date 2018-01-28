@@ -16,7 +16,8 @@ defmodule Triton.Mixfile do
      start_permanent: Mix.env == :prod,
      package: package(),
      homepage_url: @url,
-     deps: deps()]
+     deps: deps(),
+     test_paths: test_paths()]
   end
 
   def application do
@@ -41,4 +42,6 @@ defmodule Triton.Mixfile do
       files: ~w(lib) ++ ~w(CHANGELOG.md LICENSE mix.exs README.md)
     ]
   end
+
+  defp test_paths, do: ["test", "test/mix"]
 end
