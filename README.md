@@ -53,10 +53,10 @@ First, define your keyspace.  Triton will create the keyspace for your at compil
 Currently Triton only supports a single Keyspace.
 
 ```elixir
-defmodule Schema.Keyspace, conn: Triton.Conn do
+defmodule Schema.Keyspace do
   use Triton.Keyspace
 
-  keyspace :my_keyspace do
+  keyspace :my_keyspace, conn: Triton.Conn do
     with_options [
       replication: "{'class' : 'SimpleStrategy', 'replication_factor': 3}"
     ]
@@ -72,7 +72,7 @@ If you would like Triton to auto-create tables for you at compile time, you must
 
 ```elixir
 defmodule Schema.User do
-  require Schema.Keyspace  
+  require Schema.Keyspace
   use Triton.Table
 
   table :users, keyspace: Schema.Keyspace do
@@ -125,7 +125,7 @@ An example of materialized view **users_by_email** with all fields
 
 ```elixir
 defmodule Schema.UserByEmail do
-  require Schema.User  
+  require Schema.User
   use Triton.MaterializedView
 
   materialized_view :users_by_email, from: Schema.User do
