@@ -50,8 +50,6 @@ config :triton,
 
 First, define your keyspace.  Triton will create the keyspace for your at compile time if it does not exist.
 
-Currently Triton only supports a single Keyspace.
-
 ```elixir
 defmodule Schema.Keyspace, conn: Triton.Conn do
   use Triton.Keyspace
