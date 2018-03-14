@@ -51,10 +51,10 @@ config :triton,
 First, define your keyspace.  Triton will create the keyspace for your at compile time if it does not exist.
 
 ```elixir
-defmodule Schema.Keyspace, conn: Triton.Conn do
+defmodule Schema.Keyspace do
   use Triton.Keyspace
 
-  keyspace :my_keyspace do
+  keyspace :my_keyspace, conn: Triton.Conn do
     with_options [
       replication: "{'class' : 'SimpleStrategy', 'replication_factor': 3}"
     ]
