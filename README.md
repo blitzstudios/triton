@@ -46,6 +46,10 @@ config :triton,
   ]
 ```
 
+## Reconnect
+
+Since v0.1.6, if DB gets disconnected, Triton will attempt to reconnect.
+
 ## Defining a Keyspace
 
 First, define your keyspace.  Triton will create the keyspace for your at compile time if it does not exist.
@@ -83,6 +87,8 @@ defmodule Schema.User do
     field :notifications, {:map, "<text, text>"}
     field :friends, {:set, "<text>"}
     field :posts, {:list, "<text>"}
+    field :updated, :timestamp
+    field :created, :timestamp, transform: &Schema.Helper.DateHelper.to_ms/1  # transform field data
     partition_key [:user_id]
   end
 end
