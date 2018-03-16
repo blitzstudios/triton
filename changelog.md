@@ -1,5 +1,13 @@
 # Changelog
 
+## v 0.1.7
+
+Fixed a bug with Triton.Monitor from 1.6.
+
+## v 0.1.6
+
+Added Triton.Monitor to cleanly reconnect to DB in the event db_connection becomes disconnected.
+
 ## v 0.1.5
 
 Added field validation to updates.
