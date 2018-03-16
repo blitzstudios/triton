@@ -48,7 +48,7 @@ config :triton,
 
 ## Reconnect
 
-Since v0.1.6, if DB gets disconnected, Triton will attempt to reconnect.
+Since v0.1.7, if DB gets disconnected, Triton will attempt to reconnect.
 
 ## Defining a Keyspace
 
