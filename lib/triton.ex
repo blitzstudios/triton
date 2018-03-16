@@ -12,7 +12,7 @@ defmodule Triton do
         {:name, config[:conn]},
         {:after_connect, fn(conn) -> Xandra.execute(conn, "USE #{config[:keyspace]}") end}
         | config
-      ]], [id: make_ref()])
+      ]], [id: config[:conn]])
     end
 
     monitors = for config <- configs, into: [] do
