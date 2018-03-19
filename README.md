@@ -17,7 +17,9 @@ config :triton,
       pool: Xandra.Cluster,
       underlying_pool: DBConnection.Poolboy,
       pool_size: 10,
-      keyspace: "my_keyspace"
+      keyspace: "my_keyspace",
+      health_check_delay: 2500,  # optional: (default is 5000)
+      health_check_interval: 500  # optional: (default is 1000)
     ]
   ]
 ```
@@ -33,7 +35,9 @@ config :triton,
       pool: Xandra.Cluster,
       underlying_pool: DBConnection.Poolboy,
       pool_size: 10,
-      keyspace: "cluster_1_keyspace"
+      keyspace: "cluster_1_keyspace",
+      health_check_delay: 2500,  # optional: (default is 5000)
+      health_check_interval: 500  # optional: (default is 1000)
     ],
     [
       conn: Cluster2.Conn,
@@ -41,14 +45,18 @@ config :triton,
       pool: Xandra.Cluster,
       underlying_pool: DBConnection.Poolboy,
       pool_size: 10,
-      keyspace: "cluster_2_keyspace"
+      keyspace: "cluster_2_keyspace",
+      health_check_delay: 2500,  # optional: (default is 5000)
+      health_check_interval: 500  # optional: (default is 1000)
     ]
   ]
 ```
 
-## Reconnect
+## Health Check
 
-Since v0.1.7, if DB gets disconnected, Triton will attempt to reconnect.
+If DB gets disconnected, resulting in a DBConnection error, Triton will attempt to reconnect.
+
+You can specify the **health_check_delay** and **health_check_interval** via the config for each cluster.
 
 ## Defining a Keyspace
 

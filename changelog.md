@@ -1,5 +1,9 @@
 # Changelog
 
+## v 0.1.8
+
+Make Triton.Monitor more stable by using one_for_all strategy.
+
 ## v 0.1.7
 
 Fixed a bug with Triton.Monitor from 1.6.

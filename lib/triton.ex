@@ -16,10 +16,15 @@ defmodule Triton do
     end
 
     monitors = for config <- configs, into: [] do
-      worker(Triton.Monitor, [config[:conn], config[:keyspace]], [id: make_ref()])
+      worker(Triton.Monitor, [
+        config[:conn],
+        config[:keyspace],
+        config[:health_check_delay],
+        config[:health_check_interval]
+      ], [id: make_ref()])
     end
 
-    opts = [strategy: :one_for_one, name: Triton.Supervisor]
+    opts = [strategy: :one_for_all, name: Triton.Supervisor]
     Supervisor.start_link(workers ++ monitors, opts)
   end
 end
