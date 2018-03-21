@@ -1,5 +1,9 @@
 # Changelog
 
+## v 0.1.9
+
+Change supervision tree so that clusters cannot interrupt each other.
+
 ## v 0.1.8
 
 Make Triton.Monitor more stable by using one_for_all strategy.
@@ -8,7 +12,7 @@ Make Triton.Monitor more stable by using one_for_all strategy.
 
 Fixed a bug with Triton.Monitor from 1.6.
 
-## v 0.1.6
+## v 0.1.6 (Retired)
 
 Added Triton.Monitor to cleanly reconnect to DB in the event db_connection becomes disconnected.
 
