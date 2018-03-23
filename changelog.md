@@ -1,5 +1,11 @@
 # Changelog
 
+## v 0.1.10
+
+**Breaking** - Table.streamed renamed to Table.stream
+
+Added more documentation for range queries and streaming to readme.
+
 ## v 0.1.9
 
 Change supervision tree so that clusters cannot interrupt each other.

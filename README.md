@@ -186,6 +186,40 @@ UserByEmail
 |> User.one
 ```
 
+## Comparison / Range Queries
+
+Select messages created before **timestamp**
+
+```elixir
+MessagesByDate
+|> select([:message_id, :text])
+|> where(channel_id: 1, created: ["<=": timestamp])
+|> limit(20)
+|> MessagesByDate.all
+```
+
+Select messages created between **timestamp_a** and **timestamp_b**
+
+```elixir
+MessagesByDate
+|> select([:message_id, :text])
+|> where(channel_id: 1, created: [">=": timestamp_a], created: [<: timestamp_b])
+|> MessagesByDate.all
+```
+
+## Streaming
+
+Stream all messages
+
+```elixir
+MessagesByDate
+|> select(:all)
+|> where(channel_id: 1)
+|> MessagesByDate.stream(page_size: 20)
+```
+
+Which returns {:ok, stream} or {:error, msg}
+
 ## Inserting, Updating, & Deleting
 
 Again, lets import Triton.Query for the necessary macros.
@@ -319,3 +353,40 @@ User
 |> where(user_id: 10)
 |> User.save
 ```
+
+## Pre-populating data
+
+You can pre-populate data with Triton at compile time with **Triton.Setup**
+
+```elixir
+defmodule PrepopulateModule do
+  use Triton.Setup
+  import Triton.Query
+  require Schema.User
+  alias Schema.User
+
+  # create an admin user if it doesn't exist
+  
+  setup do
+    User
+    |> insert(
+      user_id: @admin_user_id,
+      username: @admin_user_username,
+      display_name: @admin_user_display_name,
+      password: Bcrypt.hashpwsalt(@admin_user_password),
+      email: @admin_user_email,
+      created: @admin_user_created
+    ) |> if_not_exists
+  end
+end
+```
+
+## Automatic Schema Creation
+
+Triton attempts to create your keyspace, tables, and materialized views at compile time if they do not exist.
+
+This means that your build server will need access to your production DB if you want to automatically create your schema in prod.  The alternative is simply to create your production schemas yourself.
+
+## Consistency levels
+
+For dev, you may want to consider running ccm with more than 1 node if you are doing queries at anything more than consistency: :one.

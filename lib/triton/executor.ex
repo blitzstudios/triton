@@ -8,8 +8,8 @@ defmodule Triton.Executor do
         end
       end
 
-      def streamed(query, options \\ []) do
-        case Triton.Executor.execute([{:streamed, true} | query], options) do
+      def stream(query, options \\ []) do
+        case Triton.Executor.execute([{:stream, true} | query], options) do
           {:error, err} -> {:error, err.message}
           {:ok, results} -> {:ok, transform_results(query, results)}
         end
@@ -101,7 +101,7 @@ defmodule Triton.Executor do
 
   defp build_cql(query) do
     case Triton.Helper.query_type(query) do
-      :streamed -> {:ok, :streamed, Triton.CQL.Select.build(query)}
+      :stream -> {:ok, :stream, Triton.CQL.Select.build(query)}
       :count  -> {:ok, :count, Triton.CQL.Select.build(query)}
       :select -> {:ok, :select, Triton.CQL.Select.build(query)}
       :insert -> {:ok, :insert, Triton.CQL.Insert.build(query)}
@@ -111,14 +111,14 @@ defmodule Triton.Executor do
     end
   end
 
-  defp execute_cql(conn, :streamed, cql, nil, options) do
+  defp execute_cql(conn, :stream, cql, nil, options) do
     with pages <- Xandra.stream_pages!(conn, cql, [], [pool: Xandra.Cluster] ++ options) do
       results = pages
         |> Stream.flat_map(fn page -> Enum.to_list(page) |> format_results end)
       {:ok, results}
     end
   end
-  defp execute_cql(conn, :streamed, cql, prepared, options) do
+  defp execute_cql(conn, :stream, cql, prepared, options) do
     with {:ok, statement} <- Xandra.prepare(conn, cql, [pool: Xandra.Cluster] ++ options),
          pages <- Xandra.stream_pages!(conn, statement, atom_to_string_keys(prepared), [pool: Xandra.Cluster] ++ options)
     do

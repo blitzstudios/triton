@@ -1,7 +1,7 @@
 defmodule Triton.Helper do
   def query_type(query) do
     cond do
-      query[:streamed] -> :streamed
+      query[:stream] -> :stream
       query[:count] -> :count
       query[:select] -> :select
       query[:insert] -> :insert
