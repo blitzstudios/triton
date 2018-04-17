@@ -58,6 +58,16 @@ If DB gets disconnected, resulting in a DBConnection error, Triton will attempt 
 
 You can specify the **health_check_delay** and **health_check_interval** via the config for each cluster.
 
+## Add Triton to your deps
+
+Add triton to your deps.
+
+```elixir
+def deps() do
+  [{:triton, "~> 0.2.0"}]
+end
+```
+
 ## Defining a Keyspace
 
 First, define your keyspace.  Triton will create the keyspace for your at compile time if it does not exist.
@@ -366,7 +376,7 @@ defmodule PrepopulateModule do
   alias Schema.User
 
   # create an admin user if it doesn't exist
-  
+
   setup do
     User
     |> insert(
