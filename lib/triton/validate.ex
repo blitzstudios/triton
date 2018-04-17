@@ -38,6 +38,8 @@ defmodule Triton.Validate do
 
   defp coerce(fragments, fields) when is_list(fragments), do: fragments |> Enum.map(fn fragment -> coerce_fragment(fragment, fields) end)
   defp coerce(non_list, _), do: non_list
+
+  defp coerce_fragment({k, v}) when is_list(v), do: v |> Enum.map(fn {c, v} -> coerce_fragment({k, c, v}) end)
   defp coerce_fragment({k, v}, fields), do: {k, coerced_value(v, fields[k][:type])}
   defp coerce_fragment({k, c, v}, fields), do: {k, c, coerced_value(v, fields[k][:type])}
   defp coerce_fragment(x, _), do: x

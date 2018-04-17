@@ -16,16 +16,10 @@ defmodule Triton.CQL.Delete do
   defp where_fragment({k, :in, v}), do: "#{k} IN (#{v |> Enum.map(fn v -> value(v) end) |> Enum.join(", ")})"
   defp where_fragment({k, c, v}), do: "#{k} #{c} #{value(v)}"
 
-  if Mix.env == :prod do
-    defp constrain(constraints) when is_list(constraints), do: " IF #{constraints |> Enum.map(fn {k, v} -> "#{k} = #{value(v)}" end) |> Enum.join(" AND ")}"
-  end
-  defp constrain(_), do: ""
+  defp constrain(constraints) when is_list(constraints), do: " IF #{constraints |> Enum.map(fn {k, v} -> "#{k} = #{value(v)}" end) |> Enum.join(" AND ")}"
 
-  if Mix.env == :prod do
-    defp if_exists(flag) when flag == true, do: " IF EXISTS"
-  end
-  defp if_exists(_), do: ""
-
+  defp if_exists(flag) when flag == true, do: " IF EXISTS"
+  
   defp value(v) when is_binary(v), do: "'#{v}'"
   defp value(v) when is_atom(v), do: ":#{v}"
   defp value(v), do: v
