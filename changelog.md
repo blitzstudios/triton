@@ -1,5 +1,9 @@
 # Changelog
 
+## v 0.2
+
+Fixed a type coercion issue in comparison queries during the validation step.
+
 ## v 0.1.10
 
 **Breaking** - Table.streamed renamed to Table.stream
