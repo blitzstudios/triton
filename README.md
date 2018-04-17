@@ -4,6 +4,16 @@ Pure Elixir Cassandra ORM built on top of Xandra.
 
 [Blog Post](https://blog.sleeperbot.com/triton-a-cassandra-orm-for-elixir-882dd8f11383)
 
+## Add Triton to your deps
+
+Add triton to your deps.
+
+```elixir
+def deps() do
+  [{:triton, "~> 0.2.0"}]
+end
+```
+
 ## Configure Triton
 
 Single Cluster
@@ -57,16 +67,6 @@ config :triton,
 If DB gets disconnected, resulting in a DBConnection error, Triton will attempt to reconnect.
 
 You can specify the **health_check_delay** and **health_check_interval** via the config for each cluster.
-
-## Add Triton to your deps
-
-Add triton to your deps.
-
-```elixir
-def deps() do
-  [{:triton, "~> 0.2.0"}]
-end
-```
 
 ## Defining a Keyspace
 
