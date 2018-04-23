@@ -17,9 +17,11 @@ defmodule Triton.CQL.Delete do
   defp where_fragment({k, c, v}), do: "#{k} #{c} #{value(v)}"
 
   defp constrain(constraints) when is_list(constraints), do: " IF #{constraints |> Enum.map(fn {k, v} -> "#{k} = #{value(v)}" end) |> Enum.join(" AND ")}"
+  defp constrain(_), do: ""
 
   defp if_exists(flag) when flag == true, do: " IF EXISTS"
-  
+  defp if_exists(_), do: ""
+
   defp value(v) when is_binary(v), do: "'#{v}'"
   defp value(v) when is_atom(v), do: ":#{v}"
   defp value(v), do: v

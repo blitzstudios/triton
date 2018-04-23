@@ -19,14 +19,10 @@ defmodule Triton.CQL.Update do
   defp where_fragment({k, :in, v}, schema), do: "#{k} IN (#{v |> Enum.map(fn v -> value(v, schema[k][:type]) end) |> Enum.join(", ")})"
   defp where_fragment({k, c, v}, schema), do: "#{k} #{c} #{value(v, schema[k][:type])}"
 
-  if Mix.env == :prod do
-    defp constrain(constraints, schema) when is_list(constraints), do: " IF #{constraints |> Enum.map(fn {k, v} -> "#{k} = #{value(v, schema[k][:type])}" end) |> Enum.join(" AND ")}"
-  end
+  defp constrain(constraints, schema) when is_list(constraints), do: " IF #{constraints |> Enum.map(fn {k, v} -> "#{k} = #{value(v, schema[k][:type])}" end) |> Enum.join(" AND ")}"
   defp constrain(_, _), do: ""
 
-  if Mix.env == :prod do
-    defp if_exists(flag) when flag == true, do: " IF EXISTS"
-  end
+  defp if_exists(flag) when flag == true, do: " IF EXISTS"
   defp if_exists(_), do: ""
 
   defp value(nil, _), do: "NULL"

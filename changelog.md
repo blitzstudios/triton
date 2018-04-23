@@ -1,5 +1,9 @@
 # Changelog
 
+## v 0.2.2
+
+Fixed a bug accidentally introduced in 0.2 with delete queries.  They should now work properly.
+
 ## v 0.2.1
 
 pablohirafuji PR: #8 - fix validation type coercion for comparison queries in issue #7
