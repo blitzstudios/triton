@@ -1,5 +1,9 @@
 # Changelog
 
+## v 0.2.1
+
+pablohirafuji PR: #8 - fix validation type coercion for comparison queries in issue #7
+
 ## v 0.2
 
 Fixed a type coercion issue in comparison queries during the validation step.
