@@ -10,7 +10,7 @@ Add triton to your deps.
 
 ```elixir
 def deps() do
-  [{:triton, "~> 0.2.0"}]
+  [{:triton, "~> 0.2"}]
 end
 ```
 
