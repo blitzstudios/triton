@@ -4,11 +4,11 @@
 
 Fixed a bug accidentally introduced in 0.2 with delete queries.  They should now work properly.
 
-## v 0.2.1
+## v 0.2.1 (Retired)
 
 pablohirafuji PR: #8 - fix validation type coercion for comparison queries in issue #7
 
-## v 0.2
+## v 0.2.0 (Retired)
 
 Fixed a type coercion issue in comparison queries during the validation step.
 
