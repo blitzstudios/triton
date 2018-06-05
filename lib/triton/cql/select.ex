@@ -5,7 +5,8 @@ defmodule Triton.CQL.Select do
     select(query[:select], query[:count], query[:__table__], schema) <>
     where(query[:where]) <>
     order_by(query[:order_by] && List.first(query[:order_by])) <>
-    limit(query[:limit])
+    limit(query[:limit]) <>
+    allow_filtering(query[:allow_filtering])
   end
 
   defp select(_, count, table, _) when count === true, do: "SELECT COUNT(*) FROM #{table}"
@@ -30,6 +31,9 @@ defmodule Triton.CQL.Select do
   defp limit(limit) when is_integer(limit), do: " LIMIT #{limit}"
   defp limit(limit) when is_atom(limit) and not is_nil(limit), do: " LIMIT :#{limit}"
   defp limit(_), do: ""
+
+  defp allow_filtering(true), do: " ALLOW FILTERING"
+  defp allow_filtering(_), do: ""
 
   defp value(v) when is_binary(v), do: "'#{v}'"
   defp value(v) when is_boolean(v), do: "#{v}"

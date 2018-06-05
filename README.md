@@ -184,6 +184,7 @@ User
 |> select([:user_id, :username])
 |> where(user_id: [in: [1, 2, 3]])
 |> limit(10)
+|> allow_filtering  # you can allow filtering on any query
 |> User.all
 ```
 

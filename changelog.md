@@ -1,5 +1,9 @@
 # Changelog
 
+## v 0.2.3
+
+Added ability to allow filtering on any query.
+
 ## v 0.2.2
 
 Fixed a bug accidentally introduced in 0.2 with delete queries.  They should now work properly.

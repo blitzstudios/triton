@@ -23,6 +23,10 @@ defmodule Triton.Query do
     QueryBuilder.build_query(:order_by, module, order_by)
   end
 
+  defmacro allow_filtering(module) do
+    QueryBuilder.build_query(:allow_filtering, module, true)
+  end
+
   defmacro insert(module, insert \\ []) do
     QueryBuilder.build_query(:insert, module, insert)
   end
