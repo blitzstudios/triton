@@ -9,11 +9,15 @@ defmodule Triton.Setup do
     quote do
       block = unquote(block)
       statement = Triton.CQL.Insert.build(block)
-      node = Application.get_env(:triton, :clusters) |> Enum.find(&(&1[:conn] == block[:__schema__].__keyspace__.__struct__.__conn__))
+
+      node_config = 
+        Application.get_env(:triton, :clusters) 
+        |> Enum.find(&(&1[:conn] == block[:__schema__].__keyspace__.__struct__.__conn__))
+        |> Keyword.take([:nodes, :authentication, :keyspace])
 
       try do
-        {:ok, conn} = Xandra.start_link(nodes: [node[:nodes] |> Enum.random])
-        Xandra.execute!(conn, "USE #{node[:keyspace]};", _params = [])
+        {:ok, conn} = Xandra.start_link(node_config)
+        Xandra.execute!(conn, "USE #{node_config[:keyspace]};", _params = [])
         Xandra.execute!(conn, statement, _params = [])
       rescue
         err -> IO.inspect(err)
