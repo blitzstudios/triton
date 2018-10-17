@@ -9,8 +9,8 @@ defmodule Triton.Setup.Table do
   """
   def setup(blueprint) do
     try do
-      node_config = 
-        Application.get_env(:triton, :clusters) 
+      node_config =
+        Application.get_env(:triton, :clusters)
         |> Enum.find(&(&1[:conn] == blueprint.__keyspace__.__struct__.__conn__))
         |> Keyword.take([:nodes, :authentication, :keyspace])
 
