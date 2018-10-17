@@ -1,7 +1,7 @@
 defmodule Triton.Mixfile do
   use Mix.Project
 
-  @version "0.2.3"
+  @version "0.2.4"
   @url "https://github.com/blitzstudios/triton"
   @maintainers ["Weixi Yen"]
 
