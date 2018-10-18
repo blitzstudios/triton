@@ -1,5 +1,9 @@
 # Changelog
 
+## v 0.2.4
+
+@gerbal added the ability to pass Xandra's authentication configuration to Triton.
+
 ## v 0.2.3
 
 Added ability to allow filtering on any query.
