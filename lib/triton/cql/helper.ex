@@ -4,7 +4,10 @@ defmodule Triton.CQL.Helper do
 
   def field_value(field, :timestamp) when is_binary(field) do
     {:ok, timestamp, _} = DateTime.from_iso8601(field)
-    DateTime.to_unix(timestamp, :millisecond)
+
+    timestamp
+    |> DateTime.to_unix(:millisecond)
+    |> to_string()
   end
 
   def field_value(v, :counter), do: v
@@ -14,7 +17,7 @@ defmodule Triton.CQL.Helper do
   def field_value(field, _) when is_binary(field), do: binary_value(field)
   def field_value(field, _) when is_atom(field), do: ":#{field}"
   def field_value(%DateTime{} = d, _), do: DateTime.to_unix(d, :millisecond)
-  def field_value(field, _), do: field
+  def field_value(field, _), do: to_string(field)
 
   def if_not_exists(flag) when flag == true, do: " IF NOT EXISTS"
   def if_not_exists(_), do: ""
@@ -35,5 +38,5 @@ defmodule Triton.CQL.Helper do
   # This will fail if v `is_map`, nested maps are generally not OK
   def binary_value({k, v}), do: binary_value(k) <> ": " <> binary_value(v)
 
-  def binary_value(v), do: v |> to_string()
+  def binary_value(v), do: v |> to_string() |> binary_value()
 end

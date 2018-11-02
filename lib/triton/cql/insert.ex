@@ -16,5 +16,5 @@ defmodule Triton.CQL.Insert do
     do: fields |> Keyword.keys() |> Enum.join(", ")
 
   defp field_values(fields, schema) when is_list(fields),
-    do: fields |> Enum.map(fn {k, v} -> field_value(v, schema[k][:type]) end) |> Enum.join(", ")
+    do: Enum.map_join(fields, ", ", fn {k, v} -> field_value(v, schema[k][:type]) end)
 end

@@ -13,17 +13,13 @@ defmodule Triton.CQL.Update do
   defp update(table), do: "UPDATE #{table}"
 
   defp set(assignments, schema) when is_list(assignments),
-    do:
-      " SET " <>
-        Enum.map_join(assignments, ", ", fn {k, v} ->
-          "#{k} = " <> field_value(v, schema[k][:type])
-        end)
+    do: " SET " <> Enum.map_join(assignments, ", ", &key_eq_field_value(&1, schema))
 
   defp where(fragments, schema) when is_list(fragments),
     do:
       " WHERE " <>
         (fragments
-         |> Enum.flat_map(fn fragment -> where_fragment(fragment, schema) end)
+         |> Enum.flat_map(& where_fragment(&1, schema))
          |> Enum.join(" AND "))
 
   defp where(_, _), do: ""
@@ -39,11 +35,11 @@ defmodule Triton.CQL.Update do
   defp where_fragment({k, c, v}, schema), do: "#{k} #{c} " <> field_value(v, schema[k][:type])
 
   defp constrain(constraints, schema) when is_list(constraints),
-    do:
-      " IF " <>
-        Enum.map_join(constraints, " AND ", fn {k, v} ->
-          "#{k} = " <> field_value(v, schema[k][:type])
-        end)
+    do: " IF " <> Enum.map_join(constraints, " AND ", &key_eq_field_value(&1, schema))
 
   defp constrain(_, _), do: ""
+
+  defp key_eq_field_value({k, v}, schema) do
+    "#{k} = " <> field_value(v, schema[k][:type])
+  end
 end
