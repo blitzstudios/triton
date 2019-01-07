@@ -50,6 +50,7 @@ defmodule Triton.CQL.Select do
   defp allow_filtering(_), do: ""
 
   defp value(v) when is_binary(v), do: "'" <> v <> "'"
+  defp value(v) when is_boolean(v), do: to_string(v)
   defp value(v) when is_atom(v), do: ":#{v}"
   defp value(v), do: to_string(v)
 end
