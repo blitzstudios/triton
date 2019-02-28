@@ -46,6 +46,9 @@ defmodule Triton.Validate do
   defp coerce_fragment({k, c, v}, fields), do: {c, coerced_value(v, fields[k][:type])}
   defp coerce_fragment(x, _), do: x
 
+  defp coerced_value(value, type) when is_list(value),
+    do: Enum.map(value, &coerced_value(&1, type))
+
   defp coerced_value(value, _) when is_atom(value), do: value
   defp coerced_value(value, :text) when not is_binary(value), do: to_string(value)
   defp coerced_value(value, :bigint) when is_binary(value), do: String.to_integer(value)
