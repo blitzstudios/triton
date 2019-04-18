@@ -70,7 +70,7 @@ You can specify the **health_check_delay** and **health_check_interval** via the
 
 ## Defining a Keyspace
 
-First, define your keyspace.  Triton will create the keyspace for your at compile time if it does not exist.
+First, define your keyspace.  Triton will create the keyspace for your after compile if it does not exist.
 
 ```elixir
 defmodule Schema.Keyspace do
@@ -88,7 +88,7 @@ end
 
 You can define as many tables as you want.  Triton will create tables for you if they do not exist.
 
-If you would like Triton to auto-create tables for you at compile time, you must require your Keyspace module.
+If you would like Triton to auto-create tables for you after compile, you must require your Keyspace module.
 
 ```elixir
 defmodule Schema.User do
@@ -120,7 +120,7 @@ Also demonstrates adding options like gc_grace_seconds and clustering_order_by.
 
 ```elixir
 defmodule Schema.UserByEmail do
-  require Schema.User  # if you want to auto-create at compile time
+  require Schema.User  # if you want to auto-create after compile
   use Triton.MaterializedView
 
   materialized_view :users_by_email, from: Schema.User do
@@ -394,7 +394,7 @@ end
 
 ## Automatic Schema Creation
 
-Triton attempts to create your keyspace, tables, and materialized views at compile time if they do not exist.
+Triton attempts to create your keyspace, tables, and materialized views after compile if they do not exist.
 
 This means that your build server will need access to your production DB if you want to automatically create your schema in prod.  The alternative is simply to create your production schemas yourself.
 
