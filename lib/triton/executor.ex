@@ -78,7 +78,10 @@ defmodule Triton.Executor do
       |> Enum.reduce(Xandra.Batch.new(), fn ({cql, prepared}, acc) ->
         case prepared do
           nil -> Xandra.Batch.add(acc, cql)
-          prepared -> Xandra.Batch.add(acc, Xandra.prepare(conn, cql, [pool: Xandra.Cluster] ++ options), prepared)
+          prepared ->
+            with {:ok, prepared_cql} <- Xandra.prepare(conn, cql, [pool: Xandra.Cluster] ++ options) do
+              Xandra.Batch.add(acc, prepared_cql, prepared)
+            end
         end
       end)
 
