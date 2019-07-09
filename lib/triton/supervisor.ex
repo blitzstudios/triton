@@ -14,7 +14,7 @@ defmodule Triton.Supervisor do
 
   def init(config) do
     children = [
-      worker(Xandra, [[
+      worker(Xandra.Cluster, [[
         {:name, config[:conn]},
         {:after_connect, fn(conn) -> Xandra.execute(conn, "USE #{config[:keyspace]}") end}
         | config
