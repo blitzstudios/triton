@@ -24,7 +24,7 @@ defmodule Triton.Monitor do
   end
 
   def handle_info(:tick, {conn, keyspace, interval} = state) do
-    Xandra.execute(conn, "USE #{keyspace}", [], [pool: Xandra.Cluster])
+    Xandra.Cluster.execute(conn, "USE #{keyspace}")
     Process.send_after(self(), :tick, interval)
     {:noreply, state}
   end

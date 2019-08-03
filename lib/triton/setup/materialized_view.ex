@@ -10,6 +10,7 @@ defmodule Triton.Setup.MaterializedView do
         |> Keyword.take([:nodes, :authentication, :keyspace])
 
       node_config = Keyword.put(node_config, :nodes, [node_config[:nodes] |> Enum.random()])
+      {:ok, _apps} = Application.ensure_all_started(:xandra)
       {:ok, conn} = Xandra.start_link(node_config)
 
       statement = build_cql(blueprint |> Map.delete(:__struct__))
