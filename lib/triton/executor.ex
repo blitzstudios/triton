@@ -69,7 +69,6 @@ defmodule Triton.Executor do
   """
   def batch_execute(queries, options \\ [])
   def batch_execute(queries, options) when is_list(queries) and length(queries) > 0 do
-
     cluster = List.first(queries) |> cluster_for
     Xandra.Cluster.run(cluster, fn conn ->
       batch = queries
