@@ -2,52 +2,37 @@ defmodule Triton.Executor do
   defmacro __using__(_) do
     quote do
       def all(query, options \\ []) do
-        case Triton.Executor.execute(query, options) do
-          {:error, err} -> {:error, err.message}
-          {:ok, results} -> {:ok, transform_results(query, results)}
+        with {:ok, results} <- Triton.Executor.execute(query, options) do
+          {:ok, transform_results(query, results)}
         end
       end
 
       def stream(query, options \\ []) do
-        case Triton.Executor.execute([{:stream, true} | query], options) do
-          {:error, err} -> {:error, err.message}
-          {:ok, results} -> {:ok, transform_results(query, results)}
+        with {:ok, results} <- Triton.Executor.execute([{:stream, true} | query], options) do
+          {:ok, transform_results(query, results)}
         end
       end
 
       def count(query, options \\ []) do
-        case Triton.Executor.execute([{:count, true} | query], options) do
-          {:error, err} -> {:error, err.message}
-          results -> results
-        end
+        Triton.Executor.execute([{:count, true} | query], options)
       end
 
       def one(query, options \\ []) do
-        case all(query, options) do
-          {:ok, results} -> {:ok, List.first(results)}
-          err -> err
+        with {:ok, results} <- all(query, options) do
+          {:ok, List.first(results)}
         end
       end
 
       def save(query, options \\ []) do
-        case Triton.Executor.execute(query, options) do
-          {:error, err} -> {:error, err.message}
-          result -> result
-        end
+        Triton.Executor.execute(query, options)
       end
 
       def del(query, options \\ []) do
-        case Triton.Executor.execute(query, options) do
-          {:error, err} -> {:error, err.message}
-          result -> result
-        end
+        Triton.Executor.execute(query, options)
       end
 
       def batch_execute(queries, options \\ []) do
-        case Triton.Executor.batch_execute(queries, options) do
-          {:ok, results} -> {:ok, results}
-          {:error, err} -> {:error, err.message}
-        end
+        Triton.Executor.batch_execute(queries, options)
       end
 
       defp transform_results(query, results) when is_list(results) do
