@@ -16,6 +16,7 @@ defmodule Triton.Setup do
 
             node_config = Keyword.put(node_config, :nodes, [node_config[:nodes] |> Enum.random()])
 
+            {:ok, _apps} = Application.ensure_all_started(:xandra)
             {:ok, conn} = Xandra.start_link(node_config)
             Xandra.execute!(conn, "USE #{node_config[:keyspace]};", _params = [])
             Xandra.execute!(conn, statement, _params = [])
