@@ -1,4 +1,6 @@
 defmodule Triton.Executor do
+  require Logger
+
   defmacro __using__(_) do
     quote do
       def all(query, options \\ []) do
@@ -70,22 +72,54 @@ defmodule Triton.Executor do
   def batch_execute(queries, options \\ [])
   def batch_execute(queries, options) when is_list(queries) and length(queries) > 0 do
     cluster = List.first(queries) |> cluster_for
-    Xandra.Cluster.run(cluster, fn conn ->
-      batch = queries
-        |> Enum.map(fn query ->
-          {:ok, _, cql} = build_cql(query)
-          {cql, query[:prepared]}
-        end)
-        |> Enum.reduce(Xandra.Batch.new(), fn ({cql, prepared}, acc) ->
-          case prepared do
-            nil -> Xandra.Batch.add(acc, cql)
-            prepared -> Xandra.Batch.add(acc, Xandra.prepare(conn, cql, options), prepared)
-          end
-        end)
+    dual_write_cluster =
+      case dual_writes_enabled() do
+        true -> List.first(queries) |> dual_write_cluster_for
+        _ -> nil
+      end
+    cqls =
+      queries
+      |> Enum.map(fn query ->
+        {:ok, _, cql} = build_cql(query)
+        {cql, query[:prepared]}
+      end)
 
-      with {:ok, %Xandra.Void{}} <- Xandra.execute(conn, batch, options),
-        do: {:ok, :success}
-    end)
+    execute =
+      fn cluster ->
+        Xandra.Cluster.run(cluster, fn conn ->
+          batch =
+            cqls
+            |> Enum.reduce(Xandra.Batch.new(), fn ({cql, prepared}, acc) ->
+              case prepared do
+                nil -> Xandra.Batch.add(acc, cql)
+                prepared -> Xandra.Batch.add(acc, Xandra.prepare(conn, cql, options), prepared)
+              end
+            end)
+
+          with {:ok, %Xandra.Void{}} <- Xandra.execute(conn, batch, options),
+               do: {:ok, :success}
+        end)
+      end
+
+    cluster_result = execute.(cluster)
+
+    _ = try do
+      case dual_write_cluster do
+        nil -> :noop
+        _ -> execute.(dual_write_cluster)
+      end
+    rescue
+      err -> {:error, err}
+    catch
+      :exit, err -> {:error, err}
+      err -> {:error, err}
+    end
+    |> case do
+         {:error, err} -> Logger.error("Triton batch_execute dual write error: #{inspect(err)}")
+         _ -> :noop
+       end
+
+    cluster_result
   end
   def batch_execute(_, _), do: {:ok, :success}
 
@@ -95,10 +129,41 @@ defmodule Triton.Executor do
           {:error, error}
   """
   def execute(query, options \\ []) do
+    with cluster <- cluster_for(query),
+      dual_write_cluster <- dual_write_cluster_for(query),
+      type <- Triton.Helper.query_type(query),
+      {:ok, results} <-
+        (result = execute_on_cluster(query, cluster, options)
+         _ = try do
+           cond do
+             dual_writes_enabled() && (not is_nil(dual_write_cluster)) && type in [:insert, :update, :delete] ->
+               execute_on_cluster(query, dual_write_cluster, options)
+             true -> :noop
+           end
+         rescue
+           err -> {:error, err}
+         catch
+           ex -> {:error, ex}
+           :exit, ex -> {:error, ex}
+         end
+         |> case do
+              {:error, err} -> Logger.error("Triton execute dual write error: #{inspect(err)}")
+              _ -> :noop
+            end
+
+         result)
+    do
+      {:ok, results}
+    end
+  end
+
+  def execute_on_cluster(query, cluster, options \\ []) do
     with {:ok, query}     <- Triton.Validate.coerce(query),
          {:ok, type, cql} <- build_cql(query),
-         {:ok, results}   <- execute_cql(cluster_for(query), type, cql, query[:prepared], options),
-    do: {:ok, results}
+         {:ok, results}   <- execute_cql(cluster, type, cql, query[:prepared], options)
+    do
+      {:ok, results}
+    end
   end
 
   defp build_cql(query) do
@@ -192,4 +257,17 @@ defmodule Triton.Executor do
   defp atom_to_string_keys(list), do: list |> Enum.map(fn {k, v} -> {to_string(k), v} end) |> Enum.into(%{})
 
   defp cluster_for(query), do: query[:__schema__].__keyspace__.__struct__.__conn__
+  defp dual_write_cluster_for(query) do
+    case query[:__schema__].__dual_write_keyspace__ do
+      nil -> nil
+      keyspace -> keyspace.__struct__.__conn__
+    end
+  end
+  defp dual_writes_enabled() do
+    case Application.get_env(:triton, :enable_dual_writes) do
+      true -> true
+      "true" -> true
+      _ -> false
+    end
+  end
 end
