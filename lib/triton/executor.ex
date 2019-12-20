@@ -91,14 +91,23 @@ defmodule Triton.Executor do
 
   @doc """
   Creates a valid CQL query out of a query keyword list and executes it.
+
   Returns {:ok, results}
           {:error, error}
   """
   def execute(query, options \\ []) do
+    start_time = System.monotonic_time()
+    telemetry_metadata = %{start_time: System.system_time()}
+
     with {:ok, query}     <- Triton.Validate.coerce(query),
          {:ok, type, cql} <- build_cql(query),
-         {:ok, results}   <- execute_cql(cluster_for(query), type, cql, query[:prepared], options),
-    do: {:ok, results}
+         {:ok, results}   <- execute_cql(cluster_for(query), type, cql, query[:prepared], options) do
+      end_time = System.monotonic_time()
+      measurements = %{elapsed_time: end_time - start_time}
+      metadata = Map.put(telemetry_metadata, :query, cql)
+      :ok = :telemetry.execute([:triton, :query], measurements, metadata)
+      {:ok, results}
+    end
   end
 
   defp build_cql(query) do
