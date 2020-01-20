@@ -6,7 +6,10 @@ defmodule Triton.Table do
     end
   end
 
-  defmacro table(name, [keyspace: keyspace], [do: block]) do
+  defmacro table(name, params, [do: block]) do
+    dual_write_keyspace = params[:dual_write_keyspace]
+    keyspace = params[:keyspace]
+
     quote do
       outer = __MODULE__
 
@@ -30,6 +33,7 @@ defmodule Triton.Table do
 
         Module.put_attribute(__MODULE__, :table, [
           { :__keyspace__, unquote(keyspace) },
+          { :__dual_write_keyspace__, unquote(dual_write_keyspace) },
           { :__name__, unquote(name) },
           { :__fields__, Module.get_attribute(__MODULE__, :fields) }
           | Module.get_attribute(__MODULE__, :table)
