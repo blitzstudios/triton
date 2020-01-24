@@ -1,24 +1,44 @@
 defmodule Triton.Setup.MaterializedView do
   def setup(blueprint) do
     try do
-      node_config =
+      tableModule = Module.concat(blueprint.__from__, Table)
+      cluster =
         Application.get_env(:triton, :clusters)
         |> Enum.find(
-          &(&1[:conn] ==
-              Module.concat(blueprint.__from__, Table).__struct__.__keyspace__.__struct__.__conn__)
-        )
-        |> Keyword.take([:nodes, :authentication, :keyspace])
+             &(&1[:conn] ==
+                 tableModule.__struct__.__keyspace__.__struct__.__conn__)
+           )
 
-      node_config = Keyword.put(node_config, :nodes, [node_config[:nodes] |> Enum.random()])
-      {:ok, _apps} = Application.ensure_all_started(:xandra)
-      {:ok, conn} = Xandra.start_link(node_config)
+      setup_p(blueprint, cluster)
 
-      statement = build_cql(blueprint |> Map.delete(:__struct__))
-      Xandra.execute!(conn, "USE #{node_config[:keyspace]};", _params = [])
-      Xandra.execute!(conn, statement, _params = [])
+      if(tableModule.__struct__.__dual_write_keyspace__) do
+        dual_write_cluster =
+          Application.get_env(:triton, :clusters)
+          |> Enum.find(
+               &(&1[:conn] ==
+                   tableModule.__struct__.__dual_write_keyspace__.__struct__.__conn__)
+             )
+
+         setup_p(blueprint, dual_write_cluster)
+      end
+
     rescue
       err -> IO.inspect(err)
     end
+  end
+
+  defp setup_p(blueprint, cluster) do
+    node_config =
+      cluster
+      |> Keyword.take([:nodes, :authentication, :keyspace])
+
+    node_config = Keyword.put(node_config, :nodes, [node_config[:nodes] |> Enum.random()])
+    {:ok, _apps} = Application.ensure_all_started(:xandra)
+    {:ok, conn} = Xandra.start_link(node_config)
+
+    statement = build_cql(blueprint |> Map.delete(:__struct__))
+    Xandra.execute!(conn, "USE #{node_config[:keyspace]};", _params = [])
+    Xandra.execute!(conn, statement, _params = [])
   end
 
   defp build_cql(blueprint) do
