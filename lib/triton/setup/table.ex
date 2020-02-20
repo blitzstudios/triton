@@ -15,7 +15,7 @@ defmodule Triton.Setup.Table do
 
       setup_p(blueprint, cluster)
 
-      if(blueprint.__dual_write_keyspace__) do
+      if(dual_writes_enabled() && blueprint.__dual_write_keyspace__) do
         dual_write_cluster =
           Application.get_env(:triton, :clusters)
           |> Enum.find(&(&1[:conn] == blueprint.__dual_write_keyspace__.__struct__.__conn__))
@@ -82,4 +82,12 @@ defmodule Triton.Setup.Table do
     "CLUSTERING ORDER BY (" <> fields_and_order <> ")"
   end
   defp with_option_cql({option, value}), do: "#{String.upcase(to_string(option))} = #{value}"
+
+  defp dual_writes_enabled() do
+    case Application.get_env(:triton, :enable_dual_writes) do
+      true -> true
+      "true" -> true
+      _ -> false
+    end
+  end
 end
