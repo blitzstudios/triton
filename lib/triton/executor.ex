@@ -147,7 +147,7 @@ defmodule Triton.Executor do
            :exit, ex -> {:error, ex}
          end
          |> case do
-              {:error, err} -> Logger.error("Triton execute dual write error: #{inspect(err)}")
+              {:error, err} -> Logger.error("Triton execute dual write error: #{inspect(err)}, query: #{inspect(query)}")
               _ -> :noop
             end
 
