@@ -66,8 +66,5 @@ defmodule Triton.CQL.Select do
   defp allow_filtering(true), do: [" ALLOW FILTERING"]
   defp allow_filtering(_), do: []
 
-  defp value(v) when is_binary(v), do: ["'", v, "'"]
-  defp value(v) when is_boolean(v), do: [to_string(v)]
-  defp value(v) when is_atom(v), do: [":", to_string(v)]
-  defp value(v), do: [to_string(v)]
+  defp value(v), do: [Triton.CQL.Encode.encode(v) |> to_string]
 end

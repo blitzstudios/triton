@@ -22,14 +22,5 @@ defmodule Triton.CQL.Delete do
   defp if_exists(flag) when flag == true, do: " IF EXISTS"
   defp if_exists(_), do: ""
 
-  defp value(v) when is_binary(v), do: binary_value(v)
-  defp value(v) when is_atom(v), do: ":#{v}"
-  defp value(v), do: v
-
-  defp binary_value(v) do
-    cond do
-      String.valid?(v) && String.contains?(v, ["'", "\""]) -> "$$#{v}$$"
-      true -> "'#{v}'"
-    end
-  end
+  defp value(v), do: Triton.CQL.Encode.encode(v)
 end

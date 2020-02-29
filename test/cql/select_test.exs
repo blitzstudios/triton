@@ -114,4 +114,14 @@ defmodule Triton.CQL.Select.Tests do
 
     assert(actual === "SELECT * FROM messages_by_parent ALLOW FILTERING")
   end
+
+  test "Select where quotes and dollars" do
+    actual =
+      TestTable
+      |> select(:all)
+      |> where(id1: "single' quotes'' should 'work' and $$dollars$$", id2: 2)
+      |> Triton.CQL.Select.build()
+
+    assert(actual === "SELECT * FROM messages_by_parent WHERE id1 = 'single'' quotes'''' should ''work'' and $$dollars$$' AND id2 = 2")
+  end
 end

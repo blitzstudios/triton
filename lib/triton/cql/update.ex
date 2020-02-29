@@ -25,19 +25,7 @@ defmodule Triton.CQL.Update do
   defp if_exists(flag) when flag == true, do: " IF EXISTS"
   defp if_exists(_), do: ""
 
-  defp value(nil, _), do: "NULL"
   defp value(v, :counter), do: v
-  defp value(v, {_, _}), do: v
-  defp value(v, _) when is_boolean(v), do: "#{v}"
-  defp value(v, _) when is_binary(v), do: binary_value(v)
-  defp value(v, _) when is_atom(v), do: ":#{v}"
-  defp value(%DateTime{} = d, _), do: DateTime.to_unix(d, :millisecond)
-  defp value(v, _), do: v
-
-  defp binary_value(v) do
-    cond do
-      String.valid?(v) && String.contains?(v, ["'", "\""]) -> "$$#{v}$$"
-      true -> "'#{v}'"
-    end
-  end
+  defp value(v, {_collection_type, _inner_types} = _field_type) when not is_nil(v), do: v
+  defp value(v, _field_type), do: Triton.CQL.Encode.encode(v)
 end
