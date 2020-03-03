@@ -158,11 +158,15 @@ defmodule Triton.Executor do
   end
 
   def execute_on_cluster(query, cluster, options \\ []) do
-    with {:ok, query}     <- Triton.Validate.coerce(query),
+    apm_module = Application.get_env(:triton, :apm_module) || Triton.APM.Noop
+    with {:ok, query} <- Triton.Validate.coerce(query),
          {:ok, type, cql} <- build_cql(query),
-         {:ok, results}   <- execute_cql(cluster, type, cql, query[:prepared], options)
+         exec_fn = fn () -> execute_cql(cluster, type, cql, query[:prepared], options) end,
+         {duration_ms, result} = Triton.APM.execute(exec_fn),
+         _ = Triton.APM.from_query!(query, cluster, duration_ms)
+             |> Triton.APM.record(apm_module)
     do
-      {:ok, results}
+      result
     end
   end
 
