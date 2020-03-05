@@ -9,7 +9,11 @@ defmodule Triton.Validate do
   def validate(query) do
     case Triton.Helper.query_type(query) do
       {:error, err} -> {:error, err.message}
-      type -> validate(type, query, query[:__schema__].__fields__)
+      type ->
+        case Application.get_env(:triton, :disable_validation) do
+          true -> {:ok, query}
+          _ -> validate(type, query, query[:__schema__].__fields__)
+        end
     end
   end
 
