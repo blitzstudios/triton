@@ -74,7 +74,7 @@ defmodule Triton.Executor do
     cluster = List.first(queries) |> cluster_for
     dual_write_cluster =
       case dual_writes_enabled() do
-        true -> List.first(queries) |> dual_write_cluster_for
+        true -> List.first(queries) |> dual_execute_cluster_for
         _ -> nil
       end
     cqls =
@@ -129,32 +129,74 @@ defmodule Triton.Executor do
           {:error, error}
   """
   def execute(query, options \\ []) do
-    with cluster <- cluster_for(query),
-      dual_write_cluster <- dual_write_cluster_for(query),
-      type <- Triton.Helper.query_type(query),
-      {:ok, results} <-
-        (result = execute_on_cluster(query, cluster, options)
-         _ = try do
-           cond do
-             dual_writes_enabled() && (not is_nil(dual_write_cluster)) && type in [:insert, :update, :delete] ->
-               execute_on_cluster(query, dual_write_cluster, options)
-             true -> :noop
-           end
-         rescue
-           err -> {:error, err}
-         catch
-           ex -> {:error, ex}
-           :exit, ex -> {:error, ex}
-         end
-         |> case do
-              {:error, err} -> Logger.error("Triton execute dual write error: #{inspect(err)}, query: #{inspect(query)}")
-              _ -> :noop
-            end
-
-         result)
+    with cluster <- cluster_for(query)
     do
-      {:ok, results}
+      result = execute_on_cluster(query, cluster, options)
+      _ = dual_execute(result, query, options)
+      result
     end
+  end
+
+  defp dual_execute(primary_result, query, options) do
+    dual_execute_cluster = dual_execute_cluster_for(query)
+    should_dual_execute? = not is_nil(dual_execute_cluster)
+    type = Triton.Helper.query_type(query)
+
+    cond do
+      should_dual_execute? && dual_writes_enabled() && type in [:insert, :update, :delete] ->
+        dual_write(query, dual_execute_cluster, options)
+      should_dual_execute? && dual_reads_enabled() && type in [:select] ->
+        dual_read(primary_result, query, dual_execute_cluster, options)
+      true -> :noop
+    end
+  end
+
+  defp dual_write(query, cluster, options) do
+    try do
+      execute_on_cluster(query, cluster, options)
+    rescue
+      err -> {:error, err}
+    catch
+      ex -> {:error, ex}
+      :exit, ex -> {:error, ex}
+    end
+    |> case do
+         {:error, err} -> Logger.error(fn -> "Triton execute dual write error: #{inspect(err)}, query: #{inspect(query)}" end)
+         _ -> :noop
+       end
+  end
+
+  defp dual_read(primary_result, query, cluster, options) do
+    Task.start(fn ->
+      try do
+        dual_read_result = execute_on_cluster(query, cluster, options)
+
+        case {primary_result, dual_read_result} do
+          {{:ok, primary}, {:ok, secondary}} when is_list(primary) and is_list(secondary) ->
+            MapSet.equal?(MapSet.new(primary), MapSet.new(secondary))
+          _ -> primary_result == dual_read_result
+        end
+        |> case do
+             true -> :noop
+             false ->
+               Logger.error(fn -> "Triton execute dual read mismatch, query: #{inspect(query)}" end)
+               :noop
+           end
+
+        dual_read_result
+      rescue
+        err -> {:error, err}
+      catch
+        ex -> {:error, ex}
+        :exit, ex -> {:error, ex}
+      end
+      |> case do
+           {:error, err} -> Logger.error(fn -> "Triton execute dual read error: #{inspect(err)}, query: #{inspect(query)}" end)
+           _ -> :noop
+         end
+    end)
+
+    :noop
   end
 
   def execute_on_cluster(query, cluster, options \\ []) do
@@ -203,13 +245,29 @@ defmodule Triton.Executor do
 
   defp execute_cql(cluster, :select, cql, nil, options) do
     with {:ok, page} <- Xandra.Cluster.execute(cluster, cql, [], options),
-      do: {:ok, Enum.to_list(page) |> format_results}
+      formatted_page = Enum.to_list(page) |> format_results
+    do
+      case page.paging_state do
+        nil -> {:ok, formatted_page}
+        paging_state ->
+          {:ok, results} = execute_cql(cluster, :select, cql, nil, Keyword.put(options, :paging_state, paging_state))
+          {:ok, formatted_page ++ results}
+      end
+    end
   end
   defp execute_cql(cluster, :select, cql, prepared, options) do
     Xandra.Cluster.run(cluster, fn conn ->
-      with {:ok, statement} <- Xandra.prepare(conn, cql, options),
-           {:ok, page} <- Xandra.execute(conn, statement, atom_to_string_keys(prepared), options),
-        do: {:ok, Enum.to_list(page) |> format_results}
+      with {:ok, statement} <- Xandra.prepare(conn, cql, Keyword.delete(options, :paging_state)),
+        {:ok, page} <- Xandra.execute(conn, statement, atom_to_string_keys(prepared), options),
+        formatted_page = Enum.to_list(page) |> format_results
+      do
+        case page.paging_state do
+          nil -> {:ok, formatted_page}
+          paging_state ->
+            {:ok, results} = execute_cql(cluster, :select, cql, prepared, Keyword.put(options, :paging_state, paging_state))
+            {:ok, formatted_page ++ results}
+        end
+      end
     end)
   end
 
@@ -261,7 +319,7 @@ defmodule Triton.Executor do
   defp atom_to_string_keys(list), do: list |> Enum.map(fn {k, v} -> {to_string(k), v} end) |> Enum.into(%{})
 
   defp cluster_for(query), do: query[:__schema__].__keyspace__.__struct__.__conn__
-  defp dual_write_cluster_for(query) do
+  defp dual_execute_cluster_for(query) do
     case query[:__schema__].__dual_write_keyspace__ do
       nil -> nil
       keyspace -> keyspace.__struct__.__conn__
@@ -269,6 +327,13 @@ defmodule Triton.Executor do
   end
   defp dual_writes_enabled() do
     case Application.get_env(:triton, :enable_dual_writes) do
+      true -> true
+      "true" -> true
+      _ -> false
+    end
+  end
+  defp dual_reads_enabled() do
+    case Application.get_env(:triton, :enable_dual_reads) do
       true -> true
       "true" -> true
       _ -> false
