@@ -167,36 +167,32 @@ defmodule Triton.Executor do
   end
 
   defp dual_read(primary_result, query, cluster, options) do
-    Task.start(fn ->
-      try do
-        dual_read_result = execute_on_cluster(query, cluster, options)
+    try do
+      dual_read_result = execute_on_cluster(query, cluster, options)
 
-        case {primary_result, dual_read_result} do
-          {{:ok, primary}, {:ok, secondary}} when is_list(primary) and is_list(secondary) ->
-            MapSet.equal?(MapSet.new(primary), MapSet.new(secondary))
-          _ -> primary_result == dual_read_result
-        end
-        |> case do
-             true -> :noop
-             false ->
-               Logger.error(fn -> "Triton execute dual read mismatch, query: #{inspect(query)}" end)
-               :noop
-           end
-
-        dual_read_result
-      rescue
-        err -> {:error, err}
-      catch
-        ex -> {:error, ex}
-        :exit, ex -> {:error, ex}
+      case {primary_result, dual_read_result} do
+        {{:ok, primary}, {:ok, secondary}} when is_list(primary) and is_list(secondary) ->
+          MapSet.equal?(MapSet.new(primary), MapSet.new(secondary))
+        _ -> primary_result == dual_read_result
       end
       |> case do
-           {:error, err} -> Logger.error(fn -> "Triton execute dual read error: #{inspect(err)}, query: #{inspect(query)}" end)
-           _ -> :noop
+           true -> :noop
+           false ->
+             Logger.error(fn -> "Triton execute dual read mismatch, query: #{inspect(query)}" end)
+             :noop
          end
-    end)
 
-    :noop
+      dual_read_result
+    rescue
+      err -> {:error, err}
+    catch
+      ex -> {:error, ex}
+      :exit, ex -> {:error, ex}
+    end
+    |> case do
+         {:error, err} -> Logger.error(fn -> "Triton execute dual read error: #{inspect(err)}, query: #{inspect(query)}" end)
+         _ -> :noop
+       end
   end
 
   def execute_on_cluster(query, cluster, options \\ []) do
