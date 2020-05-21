@@ -66,17 +66,7 @@ defmodule Triton.Executor do
     end
   end
 
-  @doc """
-  Batch execute, like execute, but on a list of queries
-  """
-  def batch_execute(queries, options \\ [])
-  def batch_execute(queries, options) when is_list(queries) and length(queries) > 0 do
-    cluster = List.first(queries) |> cluster_for
-    dual_write_cluster =
-      case dual_writes_enabled() do
-        true -> List.first(queries) |> dual_execute_cluster_for
-        _ -> nil
-      end
+  defp batch_execute_on_cluster(cluster, queries, options) do
     cqls =
       queries
       |> Enum.map(fn query ->
@@ -84,40 +74,56 @@ defmodule Triton.Executor do
         {cql, query[:prepared]}
       end)
 
-    execute =
-      fn cluster ->
-        Xandra.Cluster.run(cluster, fn conn ->
-          batch =
-            cqls
-            |> Enum.reduce(Xandra.Batch.new(), fn ({cql, prepared}, acc) ->
-              case prepared do
-                nil -> Xandra.Batch.add(acc, cql)
-                prepared -> Xandra.Batch.add(acc, Xandra.prepare(conn, cql, options), prepared)
-              end
-            end)
-
-          with {:ok, %Xandra.Void{}} <- Xandra.execute(conn, batch, options),
-               do: {:ok, :success}
+    Xandra.Cluster.run(cluster, fn conn ->
+      batch =
+        cqls
+        |> Enum.reduce(Xandra.Batch.new(), fn ({cql, prepared}, acc) ->
+          case prepared do
+            nil -> Xandra.Batch.add(acc, cql)
+            prepared -> Xandra.Batch.add(acc, Xandra.prepare(conn, cql, options), prepared)
+          end
         end)
-      end
 
-    cluster_result = execute.(cluster)
+      with {:ok, %Xandra.Void{}} <- Xandra.execute(conn, batch, options),
+           do: {:ok, :success}
+    end)
+  end
 
-    _ = try do
-      case dual_write_cluster do
-        nil -> :noop
-        _ -> execute.(dual_write_cluster)
-      end
-    rescue
-      err -> {:error, err}
-    catch
-      :exit, err -> {:error, err}
-      err -> {:error, err}
+  defp batch_dual_execute(primary_result, cluster, queries, options) do
+    case primary_result do
+      {:ok, _} ->
+        try do
+          batch_execute_on_cluster(cluster, queries, options)
+        rescue
+          err -> {:error, err}
+        catch
+          :exit, err -> {:error, err}
+          err -> {:error, err}
+        end
+        |> case do
+             {:error, err} -> Logger.error("Triton batch_execute dual write error: #{inspect(err)}")
+             _ -> :noop
+           end
+      _ -> :noop
     end
-    |> case do
-         {:error, err} -> Logger.error("Triton batch_execute dual write error: #{inspect(err)}")
-         _ -> :noop
-       end
+  end
+
+  @doc """
+  Batch execute, like execute, but on a list of queries
+  """
+  def batch_execute(queries, options \\ [])
+  def batch_execute(queries, options) when is_list(queries) and length(queries) > 0 do
+    cluster = List.first(queries) |> cluster_for
+    dual_write_cluster = List.first(queries) |> dual_execute_cluster_for
+    should_dual_execute? = dual_writes_enabled() && not is_nil(dual_write_cluster)
+
+    cluster_result = batch_execute_on_cluster(cluster, queries, options)
+
+    _ =
+      cond do
+        should_dual_execute? -> batch_dual_execute(cluster_result, dual_write_cluster, queries, options)
+        true -> :noop
+      end
 
     cluster_result
   end
