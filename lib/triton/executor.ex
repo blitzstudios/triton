@@ -144,7 +144,7 @@ defmodule Triton.Executor do
 
     cond do
       should_dual_execute? && dual_writes_enabled() && type in [:insert, :update, :delete] ->
-        dual_write(query, dual_execute_cluster, options)
+        dual_write(primary_result, query, dual_execute_cluster, options)
       should_dual_execute? && dual_reads_enabled() && type in [:select] ->
         dual_read(primary_result, query, dual_execute_cluster, options)
       true -> :noop
@@ -155,19 +155,23 @@ defmodule Triton.Executor do
     query[:select] && query[:__table__] != query[:__schema__].__name__
   end
 
-  defp dual_write(query, cluster, options) do
-    try do
-      execute_on_cluster(query, cluster, options)
-    rescue
-      err -> {:error, err}
-    catch
-      ex -> {:error, ex}
-      :exit, ex -> {:error, ex}
+  defp dual_write(primary_result, query, cluster, options) do
+    case primary_result do
+      {:ok, _} ->
+        try do
+          execute_on_cluster(query, cluster, options)
+        rescue
+          err -> {:error, err}
+        catch
+          ex -> {:error, ex}
+          :exit, ex -> {:error, ex}
+        end
+        |> case do
+             {:error, err} -> Logger.error(fn -> "Triton execute dual write error: #{inspect(err)}, query: #{inspect(query)}" end)
+             _ -> :noop
+           end
+       _ -> :noop
     end
-    |> case do
-         {:error, err} -> Logger.error(fn -> "Triton execute dual write error: #{inspect(err)}, query: #{inspect(query)}" end)
-         _ -> :noop
-       end
   end
 
   defp dual_read(primary_result, query, cluster, options) do
