@@ -151,6 +151,10 @@ defmodule Triton.Executor do
     end
   end
 
+  defp is_mv_select(query) do
+    query[:select] && query[:__table__] != query[:__schema__].__name__
+  end
+
   defp dual_write(query, cluster, options) do
     try do
       execute_on_cluster(query, cluster, options)
@@ -170,8 +174,9 @@ defmodule Triton.Executor do
     try do
       dual_read_result = execute_on_cluster(query, cluster, options)
 
-      case {primary_result, dual_read_result} do
-        {{:ok, primary}, {:ok, secondary}} when is_list(primary) and is_list(secondary) ->
+      case {is_mv_select(query), primary_result, dual_read_result} do
+        {true, _, _} -> true
+        {false, {:ok, primary}, {:ok, secondary}} when is_list(primary) and is_list(secondary) ->
           MapSet.equal?(MapSet.new(primary), MapSet.new(secondary))
         _ -> primary_result == dual_read_result
       end
