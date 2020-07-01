@@ -26,6 +26,7 @@ defmodule Triton.CQL.Update do
   defp if_exists(_), do: ""
 
   defp value(v, :counter), do: v
+  defp value(v, {_collection_type, _inner_types} = _field_type) when not is_nil(v) and is_atom(v), do: ":#{v}"
   defp value(v, {_collection_type, _inner_types} = _field_type) when not is_nil(v), do: v
   defp value(v, _field_type), do: Triton.CQL.Encode.encode(v)
 end

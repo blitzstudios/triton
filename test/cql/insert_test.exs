@@ -35,6 +35,16 @@ defmodule Triton.CQL.Insert.Tests do
     assert(actual === "INSERT INTO messages_by_parent (id1, id2) VALUES ('one', 2)")
   end
 
+  test "Insert prepared/2" do
+    actual =
+      TestTable
+      |> prepared(id1: "one", id2: 2)
+      |> insert(id1: :id1, id2: :id2)
+      |> Triton.CQL.Insert.build()
+
+    assert(actual === "INSERT INTO messages_by_parent (id1, id2) VALUES (:id1, :id2)")
+  end
+
   test "Insert quotes and dollars" do
     actual =
       TestTable
@@ -60,5 +70,15 @@ defmodule Triton.CQL.Insert.Tests do
       |> Triton.CQL.Insert.build()
 
     assert(actual === "INSERT INTO messages_by_parent (id1, id2, map) VALUES ('one', 2, NULL)")
+  end
+
+  test "Inserts prepared maps" do
+    actual =
+      TestTable
+      |> prepared(id1: "one", id2: 2, map: "{1: 'one'}")
+      |> insert(id1: :id1, id2: :id2, map: :map)
+      |> Triton.CQL.Insert.build()
+
+    assert(actual === "INSERT INTO messages_by_parent (id1, id2, map) VALUES (:id1, :id2, :map)")
   end
 end

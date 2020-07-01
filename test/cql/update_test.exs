@@ -57,6 +57,17 @@ defmodule Triton.CQL.Update.Tests do
     assert(actual === "UPDATE messages_by_parent SET map = {1: 'one'} WHERE id1 = 'one' AND id2 = 2")
   end
 
+  test "Updates maps prepared" do
+    actual =
+      TestTable
+      |> prepared(map: "{1: 'one'}", id1: "one", id2: 2)
+      |> update(map: :map)
+      |> where(id1: :id1, id2: :id2)
+      |> Triton.CQL.Update.build()
+
+    assert(actual === "UPDATE messages_by_parent SET map = :map WHERE id1 = :id1 AND id2 = :id2")
+  end
+
   test "Updates null maps" do
     actual =
       TestTable
