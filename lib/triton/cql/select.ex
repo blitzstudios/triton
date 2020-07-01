@@ -26,7 +26,17 @@ defmodule Triton.CQL.Select do
          end)
     ["SELECT ", filtered_fields, " FROM ", to_string(table)]
   end
-  defp select(_, _, table, _), do: ["SELECT * FROM ", to_string(table)]
+  defp select(_, _, table, schema) do
+    schema_fields =
+      schema
+      |> Enum.sort_by(fn {k, _v} -> k end, &>/2)
+      |> Enum.reduce(:first, fn
+           {k, _}, :first -> [to_string(k)]
+           {k, _}, acc -> ["#{k}, " | acc]
+      end)
+
+    ["SELECT ", schema_fields, " FROM ", to_string(table)]
+  end
 
   defp where(fragments) when is_list(fragments) do
     [

@@ -31,7 +31,7 @@ defmodule Triton.CQL.Select.Tests do
       |> select(:all)
       |> Triton.CQL.Select.build()
 
-    assert(actual === "SELECT * FROM messages_by_parent")
+    assert(actual === "SELECT id1, id2 FROM messages_by_parent")
   end
 
   test "Select columns" do
@@ -50,7 +50,7 @@ defmodule Triton.CQL.Select.Tests do
       |> where(id1: "one", id2: 2)
       |> Triton.CQL.Select.build()
 
-    assert(actual === "SELECT * FROM messages_by_parent WHERE id1 = 'one' AND id2 = 2")
+    assert(actual === "SELECT id1, id2 FROM messages_by_parent WHERE id1 = 'one' AND id2 = 2")
   end
 
   test "Select where prepared" do
@@ -61,7 +61,7 @@ defmodule Triton.CQL.Select.Tests do
       |> where(id1: :id1, id2: :id2)
       |> Triton.CQL.Select.build()
 
-    assert(actual === "SELECT * FROM messages_by_parent WHERE id1 = :id1 AND id2 = :id2")
+    assert(actual === "SELECT id1, id2 FROM messages_by_parent WHERE id1 = :id1 AND id2 = :id2")
   end
 
   test "Select where in" do
@@ -71,7 +71,7 @@ defmodule Triton.CQL.Select.Tests do
       |> where(id1: [in: ["one", "two", "three"]])
       |> Triton.CQL.Select.build()
 
-    assert(actual === "SELECT * FROM messages_by_parent WHERE id1 IN ('one', 'two', 'three')")
+    assert(actual === "SELECT id1, id2 FROM messages_by_parent WHERE id1 IN ('one', 'two', 'three')")
   end
 
   test "Select where range" do
@@ -81,7 +81,7 @@ defmodule Triton.CQL.Select.Tests do
       |> where(id1: "one", id2: [">=": 1], id2: ["<": 10])
       |> Triton.CQL.Select.build()
 
-    assert(actual === "SELECT * FROM messages_by_parent WHERE id1 = 'one' AND id2 >= 1 AND id2 < 10")
+    assert(actual === "SELECT id1, id2 FROM messages_by_parent WHERE id1 = 'one' AND id2 >= 1 AND id2 < 10")
   end
 
   test "Select where order by" do
@@ -92,7 +92,7 @@ defmodule Triton.CQL.Select.Tests do
       |> order_by(id1: "desc")
       |> Triton.CQL.Select.build()
 
-    assert(actual === "SELECT * FROM messages_by_parent WHERE id1 = 'one' AND id2 = 2 ORDER BY id1 desc")
+    assert(actual === "SELECT id1, id2 FROM messages_by_parent WHERE id1 = 'one' AND id2 = 2 ORDER BY id1 desc")
   end
 
   test "Select limit" do
@@ -102,7 +102,7 @@ defmodule Triton.CQL.Select.Tests do
       |> limit(1)
       |> Triton.CQL.Select.build()
 
-    assert(actual === "SELECT * FROM messages_by_parent LIMIT 1")
+    assert(actual === "SELECT id1, id2 FROM messages_by_parent LIMIT 1")
   end
 
   test "Select allow filtering" do
@@ -112,7 +112,7 @@ defmodule Triton.CQL.Select.Tests do
       |> allow_filtering
       |> Triton.CQL.Select.build()
 
-    assert(actual === "SELECT * FROM messages_by_parent ALLOW FILTERING")
+    assert(actual === "SELECT id1, id2 FROM messages_by_parent ALLOW FILTERING")
   end
 
   test "Select where quotes and dollars" do
@@ -122,6 +122,6 @@ defmodule Triton.CQL.Select.Tests do
       |> where(id1: "single' quotes'' should 'work' and $$dollars$$", id2: 2)
       |> Triton.CQL.Select.build()
 
-    assert(actual === "SELECT * FROM messages_by_parent WHERE id1 = 'single'' quotes'''' should ''work'' and $$dollars$$' AND id2 = 2")
+    assert(actual === "SELECT id1, id2 FROM messages_by_parent WHERE id1 = 'single'' quotes'''' should ''work'' and $$dollars$$' AND id2 = 2")
   end
 end
