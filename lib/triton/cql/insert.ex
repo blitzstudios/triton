@@ -9,6 +9,7 @@ defmodule Triton.CQL.Insert do
   defp insert(fields, table, schema) when is_list(fields), do: "INSERT INTO #{table} (#{field_keys(fields)}) VALUES (#{field_values(fields, schema)})"
   defp field_keys(fields) when is_list(fields), do: fields |> Enum.map(fn {k, _} -> k end) |> Enum.join(", ")
   defp field_values(fields, schema) when is_list(fields), do: fields |> Enum.map(fn {k, v} -> field_value(v, schema[k][:type]) end) |> Enum.join(", ")
+  defp field_value(v, {_collection_type, _inner_types}) when not is_nil(v) and is_atom(v), do: ":#{v}"
   defp field_value(v, {_collection_type, _inner_types}) when not is_nil(v), do: v
   defp field_value(field, _field_type), do: Triton.CQL.Encode.encode(field)
 
