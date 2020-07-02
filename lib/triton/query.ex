@@ -3,7 +3,7 @@ defmodule Triton.Query do
 
   @limit_default 100
 
-  defmacro prepared(module, prepared \\ []) do
+  defmacro prepared(module, prepared \\ :auto) do
     QueryBuilder.build_query(:prepared, module, prepared)
   end
 
