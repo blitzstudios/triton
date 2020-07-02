@@ -27,28 +27,51 @@ defmodule Triton.CQL.Insert.Tests do
   end
 
   test "Insert" do
-    actual =
+    query =
       TestTable
       |> insert(id1: "one", id2: 2)
-      |> Triton.CQL.Insert.build()
+      |> Triton.CQL.Parameterize.parameterize!()
 
-    assert(actual === "INSERT INTO messages_by_parent (id1, id2) VALUES ('one', 2)")
+    cql = query |> Triton.CQL.Insert.build()
+    bindings = query[:prepared]
+
+    assert(cql === "INSERT INTO messages_by_parent (id1, id2) VALUES ('one', 2)")
+    assert(bindings === nil)
+  end
+
+  test "Insert prepared/1" do
+    query =
+      TestTable
+      |> prepared()
+      |> insert(id1: "one", id2: 2)
+      |> Triton.CQL.Parameterize.parameterize!()
+
+    cql = query |> Triton.CQL.Insert.build()
+    bindings = query[:prepared]
+
+    assert(cql === "INSERT INTO messages_by_parent (id1, id2) VALUES (:i_id1_0, :i_id2_1)")
+    assert bindings === [i_id1_0: "one", i_id2_1: 2]
   end
 
   test "Insert prepared/2" do
-    actual =
+    query =
       TestTable
       |> prepared(id1: "one", id2: 2)
       |> insert(id1: :id1, id2: :id2)
-      |> Triton.CQL.Insert.build()
+      |> Triton.CQL.Parameterize.parameterize!()
 
-    assert(actual === "INSERT INTO messages_by_parent (id1, id2) VALUES (:id1, :id2)")
+    cql = query |> Triton.CQL.Insert.build()
+    bindings = query[:prepared]
+
+    assert(cql === "INSERT INTO messages_by_parent (id1, id2) VALUES (:id1, :id2)")
+    assert bindings === [id1: "one", id2: 2]
   end
 
   test "Insert quotes and dollars" do
     actual =
       TestTable
       |> insert(id1: "single' quotes'' should 'work' and $$dollars$$", id2: 2)
+      |> Triton.CQL.Parameterize.parameterize!()
       |> Triton.CQL.Insert.build()
 
     assert(actual === "INSERT INTO messages_by_parent (id1, id2) VALUES ('single'' quotes'''' should ''work'' and $$dollars$$', 2)")
@@ -58,6 +81,7 @@ defmodule Triton.CQL.Insert.Tests do
     actual =
       TestTable
       |> insert(id1: "one", id2: 2, map: "{1: 'one'}")
+      |> Triton.CQL.Parameterize.parameterize!()
       |> Triton.CQL.Insert.build()
 
     assert(actual === "INSERT INTO messages_by_parent (id1, id2, map) VALUES ('one', 2, {1: 'one'})")
@@ -67,18 +91,23 @@ defmodule Triton.CQL.Insert.Tests do
     actual =
       TestTable
       |> insert(id1: "one", id2: 2, map: nil)
+      |> Triton.CQL.Parameterize.parameterize!()
       |> Triton.CQL.Insert.build()
 
     assert(actual === "INSERT INTO messages_by_parent (id1, id2, map) VALUES ('one', 2, NULL)")
   end
 
   test "Inserts prepared maps" do
-    actual =
+    query =
       TestTable
       |> prepared(id1: "one", id2: 2, map: "{1: 'one'}")
       |> insert(id1: :id1, id2: :id2, map: :map)
-      |> Triton.CQL.Insert.build()
+      |> Triton.CQL.Parameterize.parameterize!()
 
-    assert(actual === "INSERT INTO messages_by_parent (id1, id2, map) VALUES (:id1, :id2, :map)")
+    cql = query |> Triton.CQL.Insert.build()
+    bindings = query[:prepared]
+
+    assert(cql === "INSERT INTO messages_by_parent (id1, id2, map) VALUES (:id1, :id2, :map)")
+    assert bindings === [id1: "one", id2: 2, map: "{1: 'one'}"]
   end
 end

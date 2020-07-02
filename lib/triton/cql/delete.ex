@@ -13,7 +13,8 @@ defmodule Triton.CQL.Delete do
   defp where(_), do: ""
   defp where_fragment({k, v}) when is_list(v), do: v |> Enum.map(fn {c, v} -> where_fragment({k, c, v}) end)
   defp where_fragment({k, v}), do: ["#{k} = #{value(v)}"]
-  defp where_fragment({k, :in, v}), do: "#{k} IN (#{v |> Enum.map(fn v -> value(v) end) |> Enum.join(", ")})"
+  defp where_fragment({k, :in, v}) when is_list(v), do: "#{k} IN (#{v |> Enum.map(fn v -> value(v) end) |> Enum.join(", ")})"
+  defp where_fragment({k, :in, v}), do: "#{k} IN #{value(v)}"
   defp where_fragment({k, c, v}), do: "#{k} #{c} #{value(v)}"
 
   defp constrain(constraints) when is_list(constraints), do: " IF #{constraints |> Enum.map(fn {k, v} -> "#{k} = #{value(v)}" end) |> Enum.join(" AND ")}"

@@ -51,7 +51,7 @@ defmodule Triton.CQL.Select do
   defp where(_), do: []
   defp where_fragment({k, v}) when is_list(v), do: v |> Enum.map(fn {c, v} -> where_fragment({k, c, v}) end)
   defp where_fragment({k, v}), do: [to_string(k), " = ", value(v)]
-  defp where_fragment({k, :in, v}) do
+  defp where_fragment({k, :in, v}) when is_list(v) do
     [
       to_string(k),
       " IN (",
@@ -63,6 +63,7 @@ defmodule Triton.CQL.Select do
       ")"
     ]
   end
+  defp where_fragment({k, :in, v}), do: [to_string(k), " IN ", value(v)]
   defp where_fragment({k, c, v}), do: [to_string(k), " ", to_string(c), " ",  value(v)]
 
   defp order_by({field, direction}), do: [" ORDER BY ", to_string(field), " ", to_string(direction)]
