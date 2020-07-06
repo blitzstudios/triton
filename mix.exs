@@ -12,6 +12,7 @@ defmodule Triton.Mixfile do
      source_url: @url,
      elixir: "~> 1.4",
      description: "Pure Elixir Cassandra ORM built on top of Xandra.",
+     config: "config/config.exs",
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
      package: package(),
