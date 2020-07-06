@@ -43,8 +43,23 @@ defmodule Triton.Validate do
   defp coerce(fragments, fields) when is_list(fragments), do: fragments |> Enum.map(fn fragment -> coerce_fragment(fragment, fields) end)
   defp coerce(non_list, _), do: non_list
 
-  defp coerce_fragment({k, v}, fields) when is_list(v), do: {k, v |> Enum.map(fn {c, v} -> coerce_fragment({k, c, v}, fields) end)}
+  defp coerce_fragment({k, vs}, fields) when is_list(vs) do
+    coerced =
+      vs
+      |> Enum.map(fn
+           {c, v} -> coerce_fragment({k, c, v}, fields)
+           # This happens when a prepared where in binding is coerced
+           #    TestTable
+           #    |> prepared(p_id2s: [1, 2, 3])
+           #    |> select(:all)
+           #    |> where(id1: "1", id2: [in: :p_id2s])
+           v -> coerced_value(v, fields[k][:type])
+      end)
+
+    {k, coerced}
+  end
   defp coerce_fragment({k, v}, fields), do: {k, coerced_value(v, fields[k][:type])}
+  defp coerce_fragment({k, c, vs}, fields) when is_list(vs), do: {c, vs |> Enum.map(fn v -> coerced_value(v, fields[k][:type]) end)}
   defp coerce_fragment({k, c, v}, fields), do: {c, coerced_value(v, fields[k][:type])}
   defp coerce_fragment(x, _), do: x
 
