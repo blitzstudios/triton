@@ -19,7 +19,7 @@ defmodule Triton.Setup.MaterializedView do
                    tableModule.__struct__.__dual_write_keyspace__.__struct__.__conn__)
              )
 
-         setup_p(blueprint, dual_write_cluster)
+        setup_p(blueprint, dual_write_cluster)
       end
 
     rescue

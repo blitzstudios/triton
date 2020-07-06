@@ -30,7 +30,12 @@ defmodule Triton.MaterializedView do
           | Module.get_attribute(__MODULE__, :materialized_view)
         ])
 
-        def __after_compile__(_, _), do: Triton.Setup.MaterializedView.setup(__MODULE__.__struct__)
+        def __after_compile__(_, _) do
+          case Triton.Configuration.disable_compilation_migrations?() do
+            true -> :noop
+            false -> Triton.Setup.MaterializedView.setup(__MODULE__.__struct__)
+          end
+        end
 
         defstruct Module.get_attribute(__MODULE__, :materialized_view)
       end

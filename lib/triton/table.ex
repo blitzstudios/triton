@@ -39,7 +39,12 @@ defmodule Triton.Table do
           | Module.get_attribute(__MODULE__, :table)
         ])
 
-        def __after_compile__(_, _), do: Triton.Setup.Table.setup(__MODULE__.__struct__)
+        def __after_compile__(_, _) do
+          case Triton.Configuration.disable_compilation_migrations?() do
+            true -> :noop
+            false -> Triton.Setup.Table.setup(__MODULE__.__struct__)
+          end
+        end
 
         defstruct Module.get_attribute(__MODULE__, :table)
       end
