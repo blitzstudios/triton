@@ -70,6 +70,7 @@ defmodule Triton.Executor do
     cqls =
       queries
       |> Enum.map(fn query ->
+        query = Triton.CQL.Parameterize.parameterize!(query)
         {:ok, _, cql} = build_cql(query)
         {cql, query[:prepared]}
       end)
@@ -80,7 +81,7 @@ defmodule Triton.Executor do
         |> Enum.reduce(Xandra.Batch.new(), fn ({cql, prepared}, acc) ->
           case prepared do
             nil -> Xandra.Batch.add(acc, cql)
-            prepared -> Xandra.Batch.add(acc, Xandra.prepare(conn, cql, options), prepared)
+            prepared -> Xandra.Batch.add(acc, Xandra.prepare!(conn, cql, options), atom_to_string_keys(prepared))
           end
         end)
 
