@@ -54,17 +54,11 @@ defmodule Triton.APM do
   end
 
   defp keyspace!(query, conn) do
-    keyspace = query[:__schema__].__keyspace__
-    keyspace_conn = keyspace.__struct__.__conn__
-    dual_keyspace =
-      query[:__schema__]
-      |> Map.from_struct
-      |> fn map -> map[:__dual_write_keyspace__] end.()
-    dual_keyspace_conn =
-      case dual_keyspace do
-        nil -> nil
-        k -> k.__struct__.__conn__
-      end
+    schema_module = query[:__schema_module__]
+    keyspace = Triton.Metadata.keyspace(schema_module)
+    keyspace_conn = Triton.Metadata.conn(schema_module)
+    dual_keyspace = Triton.Metadata.secondary_keyspace(schema_module)
+    dual_keyspace_conn = Triton.Metadata.secondary_conn(schema_module)
 
     cond do
       keyspace_conn == conn -> keyspace

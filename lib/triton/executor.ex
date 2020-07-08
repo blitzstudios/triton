@@ -53,9 +53,10 @@ defmodule Triton.Executor do
       end
 
       defp transform_results(query, results) when is_list(results) do
+        fields = Triton.Metadata.fields(query[:__schema_module__])
         for result <- results do
           for {k, v} <- result, into: %{} do
-            case query[:__schema__].__fields__[k][:opts][:transform] do
+            case fields[k][:opts][:transform] do
               nil -> {k, v}
               func -> {k, func.(v)}
             end
@@ -159,7 +160,7 @@ defmodule Triton.Executor do
   end
 
   defp is_mv_select(query) do
-    query[:select] && query[:__table__] != query[:__schema__].__name__
+    query[:select] && Triton.Metadata.is_materialized_view(query[:__schema_module__])
   end
 
   defp dual_write(primary_result, query, cluster, options) do
@@ -331,12 +332,9 @@ defmodule Triton.Executor do
   defp string_to_atom_keys(list), do: list |> Enum.map(fn {k, v} -> {String.to_atom(k), v} end) |> Enum.into(%{})
   defp atom_to_string_keys(list), do: list |> Enum.map(fn {k, v} -> {to_string(k), v} end) |> Enum.into(%{})
 
-  defp cluster_for(query), do: query[:__schema__].__keyspace__.__struct__.__conn__
+  defp cluster_for(query), do: Triton.Metadata.conn(query[:__schema_module__])
   defp dual_execute_cluster_for(query) do
-    case query[:__schema__].__dual_write_keyspace__ do
-      nil -> nil
-      keyspace -> keyspace.__struct__.__conn__
-    end
+    Triton.Metadata.secondary_conn(query[:__schema_module__])
   end
   defp dual_writes_enabled() do
     case Application.get_env(:triton, :enable_dual_writes) do

@@ -11,7 +11,7 @@ defmodule Triton.Setup do
           try do
             node_config =
               Application.get_env(:triton, :clusters)
-              |> Enum.find(&(&1[:conn] == block[:__schema__].__keyspace__.__struct__.__conn__))
+              |> Enum.find(&(&1[:conn] == Triton.Metadata.conn(block[:__schema_module__])))
               |> Keyword.take([:nodes, :authentication, :keyspace])
 
             node_config = Keyword.put(node_config, :nodes, [node_config[:nodes] |> Enum.random()])

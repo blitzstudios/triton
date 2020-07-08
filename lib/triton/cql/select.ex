@@ -1,6 +1,6 @@
 defmodule Triton.CQL.Select do
   def build(query) do
-    schema = query[:__schema__].__fields__
+    schema = Triton.Metadata.fields(query[:__schema_module__])
 
     [
       select(query[:select], query[:count], query[:__table__], schema),
@@ -29,10 +29,15 @@ defmodule Triton.CQL.Select do
   defp select(_, _, table, schema) do
     schema_fields =
       schema
-      |> Enum.sort_by(fn {k, _v} -> k end, &>/2)
+      |> Enum.sort_by(fn
+           {k, _v} -> k
+           k -> k
+      end, &>/2)
       |> Enum.reduce(:first, fn
            {k, _}, :first -> [to_string(k)]
+           k, :first -> [to_string(k)]
            {k, _}, acc -> ["#{k}, " | acc]
+           k, acc -> ["#{k}, " | acc]
       end)
 
     ["SELECT ", schema_fields, " FROM ", to_string(table)]

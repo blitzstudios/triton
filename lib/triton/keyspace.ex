@@ -23,7 +23,7 @@ defmodule Triton.Keyspace do
       def __after_compile__(_, _) do
         case Triton.Configuration.disable_compilation_migrations?() do
           true -> :noop
-          false -> Triton.Setup.Keyspace.setup(__MODULE__.__struct__)
+          false -> Triton.Setup.Keyspace.setup(__MODULE__)
         end
       end
 
