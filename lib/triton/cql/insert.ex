@@ -1,6 +1,6 @@
 defmodule Triton.CQL.Insert do
   def build(query) do
-    schema = query[:__schema__].__fields__
+    schema = Triton.Metadata.fields(query[:__schema_module__])
 
     insert(query[:insert], query[:__table__], schema) <>
     if_not_exists(query[:if_not_exists])

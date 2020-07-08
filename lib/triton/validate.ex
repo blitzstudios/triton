@@ -1,7 +1,7 @@
 defmodule Triton.Validate do
   def coerce(query) do
     with {:ok, query} <- validate(query) do
-      fields = query[:__schema__].__fields__
+      fields = Triton.Metadata.fields(query[:__schema_module__])
       {:ok, Enum.map(query, fn x -> coerce(x, fields) end)}
     end
   end
@@ -12,7 +12,7 @@ defmodule Triton.Validate do
       type ->
         case Application.get_env(:triton, :disable_validation) do
           true -> {:ok, query}
-          _ -> validate(type, query, query[:__schema__].__fields__)
+          _ -> validate(type, query, Triton.Metadata.fields(query[:__schema_module__]))
         end
     end
   end
@@ -36,7 +36,7 @@ defmodule Triton.Validate do
   end
   def validate(_, query, _), do: {:ok, query}
 
-  defp coerce({:__schema__, v}, _), do: {:__schema__, v}
+  defp coerce({:__schema_module__, v}, _), do: {:__schema_module__, v}
   defp coerce({:__table__, v}, _), do: {:__table__, v}
   defp coerce({k, v}, fields), do: {k, coerce(v, fields)}
 

@@ -1,6 +1,6 @@
 defmodule Triton.CQL.Update do
   def build(query) do
-    schema = query[:__schema__].__fields__
+    schema = Triton.Metadata.fields(query[:__schema_module__])
 
     update(query[:__table__]) <>
     set(query[:update], schema) <>

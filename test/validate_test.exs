@@ -28,11 +28,36 @@ defmodule Triton.Validate.Tests do
     end
   end
 
+  defmodule TestView do
+    use Triton.MaterializedView
+    import Triton.Query
+
+    materialized_view :test_mv, from: TestTable do
+      fields [
+        :id1, :id2, :data
+      ]
+      partition_key [:id2]
+      cluster_columns [:id1]
+    end
+  end
+
+  defmodule TestViewAllFields do
+    use Triton.MaterializedView
+    import Triton.Query
+
+    materialized_view :test_mv, from: TestTable do
+      fields :all
+      partition_key [:id2]
+      cluster_columns [:id1]
+    end
+  end
+
   test "Coerce where in strings" do
     query =
       TestTable
       |> select(:all)
       |> where(id1: [in: ["1", "2", "3"]])
+      |> Triton.CQL.Parameterize.parameterize!()
 
     actual_where =
       Triton.Validate.coerce(query)
@@ -46,6 +71,7 @@ defmodule Triton.Validate.Tests do
       TestTable
       |> select(:all)
       |> where(id1: "1", id2: [in: [1, 2, 3]])
+      |> Triton.CQL.Parameterize.parameterize!()
 
     actual_where =
       Triton.Validate.coerce(query)
@@ -60,11 +86,36 @@ defmodule Triton.Validate.Tests do
       |> prepared(p_id2s: [1, 2, 3])
       |> select(:all)
       |> where(id1: "1", id2: [in: :p_id2s])
+      |> Triton.CQL.Parameterize.parameterize!()
 
     actual_where =
       Triton.Validate.coerce(query)
       |> fn {:ok, q} -> q[:where] end.()
 
     assert(actual_where === [id1: "1", id2: [in: :p_id2s]])
+  end
+
+  test "Should coerce noop mv successfully" do
+    query =
+      TestView
+      |> select(:all)
+      |> where(id1: "1", id2: 2)
+      |> Triton.CQL.Parameterize.parameterize!()
+
+    result = Triton.Validate.coerce(query)
+
+    assert(result === {:ok, query})
+  end
+
+  test "Should coerce noop all fields mv successfully" do
+    query =
+      TestViewAllFields
+      |> select(:all)
+      |> where(id1: "1", id2: 2)
+      |> Triton.CQL.Parameterize.parameterize!()
+
+    result = Triton.Validate.coerce(query)
+
+    assert(result === {:ok, query})
   end
 end

@@ -1,5 +1,6 @@
 defmodule Triton.Setup.Keyspace do
-  def setup(blueprint) do
+  def setup(schema_module) do
+    blueprint = schema_module.__struct__
     try do
       node_config =
         Application.get_env(:triton, :clusters)
@@ -10,14 +11,15 @@ defmodule Triton.Setup.Keyspace do
       {:ok, _apps} = Application.ensure_all_started(:xandra)
       {:ok, conn} = Xandra.start_link(node_config)
 
-      statement = build_cql(blueprint |> Map.delete(:__struct__))
+      statement = build_cql(schema_module)
       Xandra.execute!(conn, statement, _params = [])
     rescue
       err -> IO.inspect(err)
     end
   end
 
-  defp build_cql(blueprint) do
+  def build_cql(schema_module) do
+    blueprint = schema_module.__struct__ |> Map.from_struct()
     create_cql(blueprint[:__name__]) <>
     with_options_cql(blueprint[:__with_options__])
   end
