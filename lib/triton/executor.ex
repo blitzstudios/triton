@@ -219,9 +219,14 @@ defmodule Triton.Executor do
          {:ok, type, cql} <- build_cql(query),
          exec_fn = fn () -> execute_cql(cluster, type, cql, query[:prepared], options) end,
          {duration_ms, result} = Triton.APM.execute(exec_fn),
-         _ = Triton.APM.from_query!(query, cluster, duration_ms)
+         _ = Triton.APM.from_query!(query, cluster, duration_ms, result)
              |> Triton.APM.record(apm_module)
     do
+      _ = case result do
+        {:error, err} -> Logger.error(fn -> "Triton primary execute error: #{inspect(err)}, query: #{inspect(query)}" end)
+        _ -> :noop
+      end
+
       result
     end
   end

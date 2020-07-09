@@ -64,13 +64,14 @@ defmodule Triton.APM.Tests do
       TestTable
       |> delete(:all)
       |> where(id1: "one", id2: 2)
-      |> Triton.APM.from_query!(TritonTests.Conn, 1000)
+      |> Triton.APM.from_query!(TritonTests.Conn, 1000, {:error, "something broke"})
 
     expected_apm = %Triton.APM{
       duration_ms: 1000,
       keyspace: "Elixir.Triton.APM.Tests.TestKeyspace",
       dml_type: "delete",
-      schema: "test_table"
+      schema: "test_table",
+      result_type: :error
     }
 
     assert(actual_apm === expected_apm)
@@ -81,14 +82,14 @@ defmodule Triton.APM.Tests do
       TestTable
       |> delete(:all)
       |> where(id1: "one", id2: 2)
-      |> Triton.APM.from_query!(TritonTests.Conn2, 1000)
-
+      |> Triton.APM.from_query!(TritonTests.Conn2, 1000, {:ok, :success})
 
     expected_apm = %Triton.APM{
       duration_ms: 1000,
       keyspace: "Elixir.Triton.APM.Tests.TestKeyspace2",
       dml_type: "delete",
-      schema: "test_table"
+      schema: "test_table",
+      result_type: :ok
     }
 
     assert(actual_apm === expected_apm)
@@ -99,14 +100,15 @@ defmodule Triton.APM.Tests do
       TestSingleKeyspaceTable
       |> delete(:all)
       |> where(id1: "one", id2: 2)
-      |> Triton.APM.from_query!(TritonTests.Conn, 1000)
+      |> Triton.APM.from_query!(TritonTests.Conn, 1000, {:ok, :success})
 
 
     expected_apm = %Triton.APM{
       duration_ms: 1000,
       keyspace: "Elixir.Triton.APM.Tests.TestKeyspace",
       dml_type: "delete",
-      schema: "test_single_keyspace_table"
+      schema: "test_single_keyspace_table",
+      result_type: :ok
     }
 
     assert(actual_apm === expected_apm)
@@ -117,14 +119,15 @@ defmodule Triton.APM.Tests do
      TestView
       |> select(:all)
       |> where(id1: "one", id2: 2)
-      |> Triton.APM.from_query!(TritonTests.Conn, 1000)
+      |> Triton.APM.from_query!(TritonTests.Conn, 1000, {:ok, []})
 
     expected_apm = %Triton.APM{
       duration_ms: 1000,
       keyspace: "Elixir.Triton.APM.Tests.TestKeyspace",
       dml_type: "select",
-      schema: "test_view"
-    }
+      schema: "test_view",
+      result_type: :ok
+     }
 
     assert(actual_apm === expected_apm)
   end

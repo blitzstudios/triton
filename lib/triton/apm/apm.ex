@@ -5,15 +5,17 @@ defmodule Triton.APM do
     keyspace: String.t(),
     schema: String.t(),
     dml_type: String.t(),
-    duration_ms: integer()
+    duration_ms: integer(),
+    result_type: :ok | :error | :unknown
   }
 
-  @enforce_keys [:keyspace, :schema, :dml_type, :duration_ms]
+  @enforce_keys [:keyspace, :schema, :dml_type, :duration_ms, :result_type]
   defstruct [
     :keyspace,
     :schema,
     :dml_type,
-    :duration_ms
+    :duration_ms,
+    :result_type
   ]
 
   @callback record(Triton.APM.t()) :: :ok | {:error, any}
@@ -35,12 +37,20 @@ defmodule Triton.APM do
        end
   end
 
-  def from_query!(query, conn, duration_ms) do
+  def from_query!(query, conn, duration_ms, result) do
+    result_type =
+      case result do
+        {:ok, _} -> :ok
+        {:error, _} -> :error
+        _ -> :unknown
+      end
+
     %__MODULE__{
       keyspace: keyspace!(query, conn) |> to_string,
       dml_type: Triton.Helper.query_type(query) |> to_string,
       duration_ms: duration_ms,
-      schema: query[:__table__] |> to_string
+      schema: query[:__table__] |> to_string,
+      result_type: result_type
     }
   end
 
