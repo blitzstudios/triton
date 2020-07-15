@@ -215,7 +215,7 @@ defmodule Triton.Executor do
   def execute_on_cluster(query, cluster, options \\ []) do
     apm_module = Application.get_env(:triton, :apm_module) || Triton.APM.Noop
     with {:ok, query} <- Triton.Validate.coerce(query),
-         query <- Triton.CQL.Parameterize.parameterize!(query),
+         query <- query |> auto_prepare |> Triton.CQL.Parameterize.parameterize!,
          {:ok, type, cql} <- build_cql(query),
          exec_fn = fn () -> execute_cql(cluster, type, cql, query[:prepared], options) end,
          {duration_ms, result} = Triton.APM.execute(exec_fn),
@@ -353,6 +353,18 @@ defmodule Triton.Executor do
       true -> true
       "true" -> true
       _ -> false
+    end
+  end
+
+  defp auto_prepare(query) do
+    cond do
+      Triton.Configuration.enable_auto_prepare?()
+      && is_nil(query[:prepared])
+      && Triton.Helper.query_type(query) == :select
+      ->
+        Keyword.put(query, :prepared, :auto)
+
+      true -> query
     end
   end
 end

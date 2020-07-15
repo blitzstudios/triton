@@ -59,6 +59,7 @@ defmodule Triton.Executor.Tests do
   defp truncate_test_table(), do: execute_cql("truncate triton_tests.test_table")
 
   setup do
+#    Application.put_env(:triton, :enable_auto_prepare, true)
     #drop_test_keyspace()
     Triton.Setup.Keyspace.setup(TestKeyspace)
     Triton.Setup.Table.setup(TestTable)
