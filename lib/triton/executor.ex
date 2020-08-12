@@ -53,14 +53,21 @@ defmodule Triton.Executor do
       end
 
       defp transform_results(query, results) when is_list(results) do
-        fields = Triton.Metadata.fields(query[:__schema_module__])
-        for result <- results do
-          for {k, v} <- result, into: %{} do
-            case fields[k][:opts][:transform] do
-              nil -> {k, v}
-              func -> {k, func.(v)}
-            end
-          end
+        transforms =
+          Triton.Metadata.fields(query[:__schema_module__])
+          |> Enum.filter(fn {k, field} -> not is_nil(field[:opts][:transform]) end)
+          |> Enum.map(fn {k, field} -> {k, field[:opts][:transform]} end)
+
+        case Enum.any?(transforms) do
+          false -> results
+          true ->
+            results
+            |> Enum.map(fn result ->
+                 transforms
+                 |> Enum.reduce(result, fn {k, transform}, acc ->
+                      acc |> Map.put(k, transform.(acc[k]))
+                    end)
+               end)
         end
       end
       defp transform_results(_, results), do: results

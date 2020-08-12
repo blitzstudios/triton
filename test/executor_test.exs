@@ -17,6 +17,9 @@ defmodule Triton.Executor.Tests do
     end
   end
 
+  # Couldn't reference the macro directly
+  def to_string(s), do: Kernel.to_string(s)
+
   defmodule TestTable do
     use Triton.Table
     import Triton.Query
@@ -26,6 +29,7 @@ defmodule Triton.Executor.Tests do
       field :id2, :bigint
       field :data, :text
       field :map, {:map, "<int, text>"}
+      field :transformed, :int, transform: &Triton.Executor.Tests.to_string/1
       partition_key [:id1]
       cluster_columns [:id2]
     end
@@ -73,7 +77,7 @@ defmodule Triton.Executor.Tests do
     {:ok, _} = execute_cql("insert into triton_tests.test_table(id1, id2, data) values ('4', 5, 'six')")
     {:ok, _} = execute_cql("insert into triton_tests.test_table(id1, id2, data) values ('7', 8, 'nine')")
 
-    expected = %{id1: "1", id2: 2, data: "three", map: nil}
+    expected = %{id1: "1", id2: 2, data: "three", map: nil, transformed: nil}
 
     actual =
       TestTable
@@ -90,9 +94,9 @@ defmodule Triton.Executor.Tests do
     {:ok, _} = execute_cql("insert into triton_tests.test_table(id1, id2, data) values ('70', 80, 'nine')")
 
     expected = [
-      %{id1: "10", id2: 20, data: "three", map: nil},
-      %{id1: "40", id2: 50, data: "six", map: nil},
-      %{id1: "70", id2: 80, data: "nine", map: nil},
+      %{id1: "10", id2: 20, data: "three", map: nil, transformed: nil},
+      %{id1: "40", id2: 50, data: "six", map: nil, transformed: nil},
+      %{id1: "70", id2: 80, data: "nine", map: nil, transformed: nil},
     ]
 
     actual =
@@ -110,9 +114,9 @@ defmodule Triton.Executor.Tests do
     {:ok, _} = execute_cql("insert into triton_tests.test_table(id1, id2, data) values ('700', 800, 'nine')")
 
     expected = [
-      %{id1: "100", id2: 200, data: "three", map: nil},
-      %{id1: "400", id2: 500, data: "six", map: nil},
-      %{id1: "700", id2: 800, data: "nine", map: nil},
+      %{id1: "100", id2: 200, data: "three", map: nil, transformed: nil},
+      %{id1: "400", id2: 500, data: "six", map: nil, transformed: nil},
+      %{id1: "700", id2: 800, data: "nine", map: nil, transformed: nil},
     ]
 
     actual =
@@ -131,9 +135,9 @@ defmodule Triton.Executor.Tests do
     {:ok, _} = execute_cql("insert into triton_tests.test_table(id1, id2, data) values ('7', 8, 'nine')")
 
     expected = [
-      %{id1: "1", id2: 2, data: "three", map: nil},
-      %{id1: "4", id2: 5, data: "six", map: nil},
-      %{id1: "7", id2: 8, data: "nine", map: nil},
+      %{id1: "1", id2: 2, data: "three", map: nil, transformed: nil},
+      %{id1: "4", id2: 5, data: "six", map: nil, transformed: nil},
+      %{id1: "7", id2: 8, data: "nine", map: nil, transformed: nil},
     ]
 
     actual =
@@ -162,8 +166,28 @@ defmodule Triton.Executor.Tests do
     assert(actual === {:ok, expected})
   end
 
+  test "Select transformed" do
+    {:ok, _} = execute_cql("insert into triton_tests.test_table(id1, id2, data, transformed) values ('1', 2, 'three', 3)")
+    {:ok, _} = execute_cql("insert into triton_tests.test_table(id1, id2, data, transformed) values ('4', 5, 'six', 6)")
+    {:ok, _} = execute_cql("insert into triton_tests.test_table(id1, id2, data, transformed) values ('7', 8, 'nine', 9)")
+
+    expected = [
+      %{id1: "1", id2: 2, data: "three", map: nil, transformed: "3"},
+      %{id1: "4", id2: 5, data: "six", map: nil, transformed: "6"},
+      %{id1: "7", id2: 8, data: "nine", map: nil, transformed: "9"},
+    ]
+
+    {:ok, actual} =
+      TestTable
+      |> prepared()
+      |> select(:all)
+      |> TestTable.all
+
+    assert(Enum.sort_by(actual, fn x -> x[:id1] end) === expected)
+  end
+
   test "Insert" do
-    expected = %{id1: "10", id2: 20, data: "data!", map: nil}
+    expected = %{id1: "10", id2: 20, data: "data!", map: nil, transformed: nil}
     {:ok, :success} =
       TestTable
       |> insert(Enum.to_list(expected))
@@ -179,9 +203,9 @@ defmodule Triton.Executor.Tests do
 
   test "Insert batch" do
     expected = [
-      %{id1: "10", id2: 10, data: "data!", map: nil},
-      %{id1: "20", id2: 20, data: "data!!", map: nil},
-      %{id1: "30", id2: 30, data: "data!!!", map: nil},
+      %{id1: "10", id2: 10, data: "data!", map: nil, transformed: nil},
+      %{id1: "20", id2: 20, data: "data!!", map: nil, transformed: nil},
+      %{id1: "30", id2: 30, data: "data!!!", map: nil, transformed: nil},
     ]
     {:ok, :success} =
       expected
@@ -198,9 +222,9 @@ defmodule Triton.Executor.Tests do
 
   test "Insert batch prepared/1" do
     expected = [
-      %{id1: "40", id2: 40, data: "data!", map: nil},
-      %{id1: "50", id2: 50, data: "data!!", map: nil},
-      %{id1: "60", id2: 60, data: "data!!!", map: nil},
+      %{id1: "40", id2: 40, data: "data!", map: nil, transformed: nil},
+      %{id1: "50", id2: 50, data: "data!!", map: nil, transformed: nil},
+      %{id1: "60", id2: 60, data: "data!!!", map: nil, transformed: nil},
     ]
     {:ok, :success} =
       expected
@@ -221,9 +245,9 @@ defmodule Triton.Executor.Tests do
 
   test "Insert batch prepared/2" do
     expected = [
-      %{id1: "70", id2: 70, data: "data!", map: nil},
-      %{id1: "80", id2: 80, data: "data!!", map: nil},
-      %{id1: "90", id2: 90, data: "data!!!", map: nil},
+      %{id1: "70", id2: 70, data: "data!", map: nil, transformed: nil},
+      %{id1: "80", id2: 80, data: "data!!", map: nil, transformed: nil},
+      %{id1: "90", id2: 90, data: "data!!!", map: nil, transformed: nil},
     ]
     {:ok, :success} =
       expected
