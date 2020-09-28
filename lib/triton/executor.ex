@@ -75,6 +75,8 @@ defmodule Triton.Executor do
   end
 
   defp batch_execute_on_cluster(cluster, queries, options) do
+    apm_module = Application.get_env(:triton, :apm_module) || Triton.APM.Noop
+
     cqls =
       queries
       |> Enum.map(fn query ->
@@ -93,8 +95,17 @@ defmodule Triton.Executor do
           end
         end)
 
-      with {:ok, %Xandra.Void{}} <- Xandra.execute(conn, batch, options),
-           do: {:ok, :success}
+      exec_fn =
+        fn ->
+          with {:ok, %Xandra.Void{}} <- Xandra.execute(conn, batch, options),
+               do: {:ok, :success}
+        end
+
+      {duration_ms, result} = Triton.APM.execute(exec_fn)
+      _ = Triton.APM.from_query!(Enum.at(queries, 0), cluster, duration_ms, result, Enum.count(queries))
+          |> Triton.APM.record(apm_module)
+
+      result
     end)
   end
 
@@ -109,10 +120,6 @@ defmodule Triton.Executor do
           :exit, err -> {:error, err}
           err -> {:error, err}
         end
-        |> case do
-             {:error, err} -> Logger.error("Triton batch_execute dual write error: #{inspect(err)}")
-             _ -> :noop
-           end
       _ -> :noop
     end
   end
@@ -126,11 +133,25 @@ defmodule Triton.Executor do
     dual_write_cluster = List.first(queries) |> dual_execute_cluster_for
     should_dual_execute? = dual_writes_enabled() && not is_nil(dual_write_cluster)
 
-    cluster_result = batch_execute_on_cluster(cluster, queries, options)
+    cluster_result =
+      batch_execute_on_cluster(cluster, queries, options)
+      |> case do
+           {:error, err} ->
+             Logger.error(fn -> "Triton primary batch_execute write error: #{inspect(err)}, query: #{inspect(queries)}" end)
+             {:error, err}
+           result -> result
+         end
 
     _ =
       cond do
-        should_dual_execute? -> batch_dual_execute(cluster_result, dual_write_cluster, queries, options)
+        should_dual_execute? ->
+          batch_dual_execute(cluster_result, dual_write_cluster, queries, options)
+          |> case do
+               {:error, err} ->
+                 Logger.error(fn -> "Triton secondary batch_execute write error: #{inspect(err)}, query: #{inspect(queries)}" end)
+                 {:error, err}
+               result -> result
+             end
         true -> :noop
       end
 

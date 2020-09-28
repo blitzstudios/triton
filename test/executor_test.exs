@@ -77,7 +77,7 @@ defmodule Triton.Executor.Tests do
     {:ok, _} = execute_cql("insert into triton_tests.test_table(id1, id2, data) values ('4', 5, 'six')")
     {:ok, _} = execute_cql("insert into triton_tests.test_table(id1, id2, data) values ('7', 8, 'nine')")
 
-    expected = %{id1: "1", id2: 2, data: "three", map: nil, transformed: nil}
+    expected = %{id1: "1", id2: 2, data: "three", map: nil, transformed: ""}
 
     actual =
       TestTable
@@ -94,9 +94,9 @@ defmodule Triton.Executor.Tests do
     {:ok, _} = execute_cql("insert into triton_tests.test_table(id1, id2, data) values ('70', 80, 'nine')")
 
     expected = [
-      %{id1: "10", id2: 20, data: "three", map: nil, transformed: nil},
-      %{id1: "40", id2: 50, data: "six", map: nil, transformed: nil},
-      %{id1: "70", id2: 80, data: "nine", map: nil, transformed: nil},
+      %{id1: "10", id2: 20, data: "three", map: nil, transformed: ""},
+      %{id1: "40", id2: 50, data: "six", map: nil, transformed: ""},
+      %{id1: "70", id2: 80, data: "nine", map: nil, transformed: ""},
     ]
 
     actual =
@@ -114,9 +114,9 @@ defmodule Triton.Executor.Tests do
     {:ok, _} = execute_cql("insert into triton_tests.test_table(id1, id2, data) values ('700', 800, 'nine')")
 
     expected = [
-      %{id1: "100", id2: 200, data: "three", map: nil, transformed: nil},
-      %{id1: "400", id2: 500, data: "six", map: nil, transformed: nil},
-      %{id1: "700", id2: 800, data: "nine", map: nil, transformed: nil},
+      %{id1: "100", id2: 200, data: "three", map: nil, transformed: ""},
+      %{id1: "400", id2: 500, data: "six", map: nil, transformed: ""},
+      %{id1: "700", id2: 800, data: "nine", map: nil, transformed: ""},
     ]
 
     actual =
@@ -135,9 +135,9 @@ defmodule Triton.Executor.Tests do
     {:ok, _} = execute_cql("insert into triton_tests.test_table(id1, id2, data) values ('7', 8, 'nine')")
 
     expected = [
-      %{id1: "1", id2: 2, data: "three", map: nil, transformed: nil},
-      %{id1: "4", id2: 5, data: "six", map: nil, transformed: nil},
-      %{id1: "7", id2: 8, data: "nine", map: nil, transformed: nil},
+      %{id1: "1", id2: 2, data: "three", map: nil, transformed: ""},
+      %{id1: "4", id2: 5, data: "six", map: nil, transformed: ""},
+      %{id1: "7", id2: 8, data: "nine", map: nil, transformed: ""},
     ]
 
     actual =
@@ -187,47 +187,58 @@ defmodule Triton.Executor.Tests do
   end
 
   test "Insert" do
-    expected = %{id1: "10", id2: 20, data: "data!", map: nil, transformed: nil}
+    inserted = %{id1: "10", id2: 20, data: "data!", map: nil, transformed: nil}
+    expected = %{id1: "10", id2: 20, data: "data!", map: nil, transformed: ""}
     {:ok, :success} =
       TestTable
-      |> insert(Enum.to_list(expected))
+      |> insert(Enum.to_list(inserted))
       |> TestTable.save
 
-    inserted =
+    actual =
       TestTable
       |> select(:all)
       |> TestTable.all
 
-    assert(inserted === {:ok, [expected]})
+    assert(actual === {:ok, [expected]})
   end
 
   test "Insert batch" do
-    expected = [
+    inserted = [
       %{id1: "10", id2: 10, data: "data!", map: nil, transformed: nil},
       %{id1: "20", id2: 20, data: "data!!", map: nil, transformed: nil},
       %{id1: "30", id2: 30, data: "data!!!", map: nil, transformed: nil},
     ]
+    expected = [
+      %{id1: "10", id2: 10, data: "data!", map: nil, transformed: ""},
+      %{id1: "20", id2: 20, data: "data!!", map: nil, transformed: ""},
+      %{id1: "30", id2: 30, data: "data!!!", map: nil, transformed: ""},
+    ]
     {:ok, :success} =
-      expected
+      inserted
       |> Enum.map(fn map -> TestTable |> insert(Enum.to_list(map)) end)
       |> TestTable.batch_execute
 
-    {:ok, inserted} =
+    {:ok, actual} =
       TestTable
       |> select(:all)
       |> TestTable.all
 
-    assert(Enum.sort_by(inserted, fn r -> r[:id1] end) === expected)
+    assert(Enum.sort_by(actual, fn r -> r[:id1] end) === expected)
   end
 
   test "Insert batch prepared/1" do
-    expected = [
+    inserted = [
       %{id1: "40", id2: 40, data: "data!", map: nil, transformed: nil},
       %{id1: "50", id2: 50, data: "data!!", map: nil, transformed: nil},
       %{id1: "60", id2: 60, data: "data!!!", map: nil, transformed: nil},
     ]
+    expected = [
+      %{id1: "40", id2: 40, data: "data!", map: nil, transformed: ""},
+      %{id1: "50", id2: 50, data: "data!!", map: nil, transformed: ""},
+      %{id1: "60", id2: 60, data: "data!!!", map: nil, transformed: ""},
+    ]
     {:ok, :success} =
-      expected
+      inserted
       |> Enum.map(fn map ->
         TestTable
         |> prepared(id1: map[:id1], id2: map[:id2], data: map[:data])
@@ -235,34 +246,56 @@ defmodule Triton.Executor.Tests do
       end)
       |> TestTable.batch_execute
 
-    {:ok, inserted} =
+    {:ok, actual} =
       TestTable
       |> select(:all)
       |> TestTable.all
 
-    assert(Enum.sort_by(inserted, fn r -> r[:id1] end) === expected)
+    assert(Enum.sort_by(actual, fn r -> r[:id1] end) === expected)
   end
 
   test "Insert batch prepared/2" do
-    expected = [
+    inserted = [
       %{id1: "70", id2: 70, data: "data!", map: nil, transformed: nil},
       %{id1: "80", id2: 80, data: "data!!", map: nil, transformed: nil},
       %{id1: "90", id2: 90, data: "data!!!", map: nil, transformed: nil},
     ]
+    expected = [
+      %{id1: "70", id2: 70, data: "data!", map: nil, transformed: ""},
+      %{id1: "80", id2: 80, data: "data!!", map: nil, transformed: ""},
+      %{id1: "90", id2: 90, data: "data!!!", map: nil, transformed: ""},
+    ]
     {:ok, :success} =
-      expected
+      inserted
       |> Enum.map(fn map ->
-           TestTable
-           |> prepared()
-           |> insert(Enum.to_list(map))
-         end)
+        TestTable
+        |> prepared()
+        |> insert(Enum.to_list(map))
+      end)
       |> TestTable.batch_execute
 
-    {:ok, inserted} =
+    {:ok, actual} =
       TestTable
       |> select(:all)
       |> TestTable.all
 
-    assert(Enum.sort_by(inserted, fn r -> r[:id1] end) === expected)
+    assert(Enum.sort_by(actual, fn r -> r[:id1] end) === expected)
+  end
+
+  test "Insert batch too large" do
+    inserted =
+      100..1000
+      |> Enum.map(fn id ->
+        %{id1: Kernel.to_string(id), id2: id, data: "data!", map: nil, transformed: nil}
+      end)
+     actual =
+      inserted
+      |> Enum.map(fn map ->
+        TestTable
+        |> insert(Enum.to_list(map))
+      end)
+      |> TestTable.batch_execute
+
+    assert(actual === {:error, "Batch too large"})
   end
 end
