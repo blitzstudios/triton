@@ -71,7 +71,9 @@ defmodule Triton.APM.Tests do
       keyspace: "Elixir.Triton.APM.Tests.TestKeyspace",
       dml_type: "delete",
       schema: "test_table",
-      result_type: :error
+      result_type: :error,
+      is_batch: false,
+      batch_size: 0
     }
 
     assert(actual_apm === expected_apm)
@@ -89,7 +91,9 @@ defmodule Triton.APM.Tests do
       keyspace: "Elixir.Triton.APM.Tests.TestKeyspace2",
       dml_type: "delete",
       schema: "test_table",
-      result_type: :ok
+      result_type: :ok,
+      is_batch: false,
+      batch_size: 0
     }
 
     assert(actual_apm === expected_apm)
@@ -108,7 +112,9 @@ defmodule Triton.APM.Tests do
       keyspace: "Elixir.Triton.APM.Tests.TestKeyspace",
       dml_type: "delete",
       schema: "test_single_keyspace_table",
-      result_type: :ok
+      result_type: :ok,
+      is_batch: false,
+      batch_size: 0
     }
 
     assert(actual_apm === expected_apm)
@@ -116,7 +122,7 @@ defmodule Triton.APM.Tests do
 
   test "Select view" do
     actual_apm =
-     TestView
+      TestView
       |> select(:all)
       |> where(id1: "one", id2: 2)
       |> Triton.APM.from_query!(TritonTests.Conn, 1000, {:ok, []})
@@ -126,7 +132,38 @@ defmodule Triton.APM.Tests do
       keyspace: "Elixir.Triton.APM.Tests.TestKeyspace",
       dml_type: "select",
       schema: "test_view",
-      result_type: :ok
+      result_type: :ok,
+      is_batch: false,
+      batch_size: 0
+    }
+
+    assert(actual_apm === expected_apm)
+  end
+
+  test "Insert batch" do
+    queries =
+      1..10
+      |> Enum.map(fn i ->
+           TestSingleKeyspaceTable
+           |> insert(id1: to_string(i), id2: i)
+         end)
+
+    actual_apm =
+      Triton.APM.from_query!(
+        Enum.at(queries, 0),
+        TritonTests.Conn,
+        1000,
+        {:ok, :success},
+        Enum.count(queries))
+
+    expected_apm = %Triton.APM{
+      duration_ms: 1000,
+      keyspace: "Elixir.Triton.APM.Tests.TestKeyspace",
+      dml_type: "insert",
+      schema: "test_single_keyspace_table",
+      result_type: :ok,
+      is_batch: true,
+      batch_size: 10
      }
 
     assert(actual_apm === expected_apm)

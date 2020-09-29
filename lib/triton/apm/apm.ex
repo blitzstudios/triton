@@ -6,7 +6,9 @@ defmodule Triton.APM do
     schema: String.t(),
     dml_type: String.t(),
     duration_ms: integer(),
-    result_type: :ok | :error | :unknown
+    result_type: :ok | :error | :unknown,
+    is_batch: boolean(),
+    batch_size: integer()
   }
 
   @enforce_keys [:keyspace, :schema, :dml_type, :duration_ms, :result_type]
@@ -15,7 +17,9 @@ defmodule Triton.APM do
     :schema,
     :dml_type,
     :duration_ms,
-    :result_type
+    :result_type,
+    :is_batch,
+    :batch_size
   ]
 
   @callback record(Triton.APM.t()) :: :ok | {:error, any}
@@ -37,7 +41,7 @@ defmodule Triton.APM do
        end
   end
 
-  def from_query!(query, conn, duration_ms, result) do
+  def from_query!(query, conn, duration_ms, result, batch_size \\ :single_query) do
     result_type =
       case result do
         {:ok, _} -> :ok
@@ -50,7 +54,9 @@ defmodule Triton.APM do
       dml_type: Triton.Helper.query_type(query) |> to_string,
       duration_ms: duration_ms,
       schema: query[:__table__] |> to_string,
-      result_type: result_type
+      result_type: result_type,
+      is_batch: batch_size != :single_query,
+      batch_size: batch_size == :single_query && 0 || batch_size
     }
   end
 
