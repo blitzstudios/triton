@@ -168,7 +168,14 @@ defmodule Triton.Executor do
     with cluster <- cluster_for(query)
     do
       result = execute_on_cluster(query, cluster, options)
+
+      _ = case result do
+        {:error, err} -> Logger.error(fn -> "Triton primary execute error: #{inspect(err)}, query: #{inspect(query)}" end)
+        _ -> :noop
+      end
+
       _ = dual_execute(result, query, options)
+
       result
     end
   end
@@ -250,11 +257,6 @@ defmodule Triton.Executor do
          _ = Triton.APM.from_query!(query, cluster, duration_ms, result)
              |> Triton.APM.record(apm_module)
     do
-      _ = case result do
-        {:error, err} -> Logger.error(fn -> "Triton primary execute error: #{inspect(err)}, query: #{inspect(query)}" end)
-        _ -> :noop
-      end
-
       result
     end
   end
