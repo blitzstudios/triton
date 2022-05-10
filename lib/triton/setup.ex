@@ -9,19 +9,25 @@ defmodule Triton.Setup do
         unquote(Macro.escape(statements))
         |> Enum.each(fn {statement, block} ->
           try do
-            node_config =
+            cluster =
               Application.get_env(:triton, :clusters)
               |> Enum.find(&(&1[:conn] == Triton.Metadata.conn(block[:__schema_module__])))
-              |> Keyword.take([:nodes, :authentication, :keyspace])
-
-            node_config = Keyword.put(node_config, :nodes, [node_config[:nodes] |> Enum.random()])
+            name = cluster |> Keyword.get(:conn)
+            node_config = cluster |> Keyword.put(:name, name)
 
             {:ok, _apps} = Application.ensure_all_started(:xandra)
-            {:ok, conn} = Xandra.start_link(node_config)
-            Xandra.execute!(conn, "USE #{node_config[:keyspace]};", _params = [])
-            Xandra.execute!(conn, statement, _params = [])
+            {:ok, _conn} =
+              case Xandra.Cluster.start_link(node_config) do
+                {:ok, pid} -> {:ok, pid}
+                {:error, {:already_started, pid}} -> {:ok, pid}
+              end
+
+            Xandra.Cluster.run(name, fn conn ->
+              Xandra.execute!(conn, "USE #{node_config[:keyspace]};", _params = [])
+              Xandra.execute!(conn, statement, _params = [])
+            end)
           rescue
-            err -> IO.inspect(err)
+            err -> IO.inspect(err, label: inspect(block[:__schema_module__]))
           end
         end)
       end

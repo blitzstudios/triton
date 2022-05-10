@@ -48,15 +48,20 @@ defmodule Triton.Executor.Tests do
     end
   end
 
-  defp execute_cql(cql) do
-    {:ok, _apps} = Application.ensure_all_started(:xandra)
-    {:ok, conn} =
+  def execute_cql(cql) do
+    conn = TritonTests.Conn
+    cluster =
       Application.get_env(:triton, :clusters)
-      |> Enum.find(fn cluster -> cluster[:conn] == TritonTests.Conn end)
-      |> Keyword.take([:nodes])
-      |> Xandra.start_link()
+      |> Enum.find(&(&1[:conn] == conn))
+    node_config = cluster |> Keyword.put(:name, conn)
+    {:ok, _apps} = Application.ensure_all_started(:xandra)
+    {:ok, _conn} =
+      case Xandra.Cluster.start_link(node_config) do
+        {:ok, pid} -> {:ok, pid}
+        {:error, {:already_started, pid}} -> {:ok, pid}
+      end
 
-    Xandra.execute(conn, cql)
+    Xandra.Cluster.execute(conn, cql)
   end
 
   defp drop_test_keyspace(), do: execute_cql("drop keyspace if exists triton_tests")
