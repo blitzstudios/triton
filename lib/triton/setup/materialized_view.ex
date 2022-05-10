@@ -24,22 +24,29 @@ defmodule Triton.Setup.MaterializedView do
       end
 
     rescue
-      err -> IO.inspect(err)
+      err -> IO.inspect(err, label: inspect(schema_module))
     end
   end
 
   defp setup_p(schema_module, cluster) do
+    name = cluster |> Keyword.get(:conn)
     node_config =
       cluster
-      |> Keyword.take([:nodes, :authentication, :keyspace])
+      |> Keyword.put(:name, name)
+      |> Keyword.put(:after_connect, fn(conn) -> Xandra.execute(conn, "USE #{cluster[:keyspace]}") end)
 
-    node_config = Keyword.put(node_config, :nodes, [node_config[:nodes] |> Enum.random()])
     {:ok, _apps} = Application.ensure_all_started(:xandra)
-    {:ok, conn} = Xandra.start_link(node_config)
+    {:ok, _conn} =
+      case Xandra.Cluster.start_link(node_config) do
+        {:ok, pid} -> {:ok, pid}
+        {:error, {:already_started, pid}} -> {:ok, pid}
+      end
 
     statement = build_cql(schema_module)
-    Xandra.execute!(conn, "USE #{node_config[:keyspace]};", _params = [])
-    Xandra.execute!(conn, statement, _params = [])
+    Xandra.Cluster.run(name, fn conn ->
+      Xandra.execute!(conn, "USE #{node_config[:keyspace]};", _params = [])
+      Xandra.execute!(conn, statement, _params = [])
+    end)
   end
 
   def build_cql(schema_module) do

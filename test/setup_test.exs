@@ -1,10 +1,11 @@
 defmodule Triton.Setup.Tests do
   use ExUnit.Case
+  import Triton.Query
 
   defmodule TestKeyspace do
     use Triton.Keyspace
 
-    keyspace :triton_tests, conn: TritonTests.PrimaryConn do
+    keyspace :triton_tests, conn: TritonTests.Conn do
       with_options [
         replication: "{'class' : 'SimpleStrategy', 'replication_factor': 3}"
       ]
@@ -42,6 +43,37 @@ defmodule Triton.Setup.Tests do
       ]
       partition_key [:id2]
     end
+  end
+
+  defmodule TestSetup do
+    use Triton.Setup
+    import Triton.Query
+
+    # fully qualified, because ambigous with ExUnit setup
+    Triton.Setup.setup do
+      Triton.Setup.Tests.TestTable
+      |> insert(id1: "setup_test", id2: 1)
+    end
+  end
+
+  defp truncate_test_table(), do: Triton.Executor.Tests.execute_cql("truncate triton_tests.test_table")
+
+  setup do
+    Triton.Setup.Keyspace.setup(TestKeyspace)
+    Triton.Setup.Table.setup(TestTable)
+    {:ok, _} = truncate_test_table()
+    :ok
+  end
+
+  test "Setup execution" do
+    Triton.Setup.Tests.TestSetup.__execute__()
+
+    {:ok, test} =
+      Triton.Setup.Tests.TestTable
+      |> select([:id1, :id2])
+      |> Triton.Setup.Tests.TestTable.one
+
+    assert(test === %{id1: "setup_test", id2: 1})
   end
 
   test "Keyspace cql" do

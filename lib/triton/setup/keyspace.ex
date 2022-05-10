@@ -2,17 +2,21 @@ defmodule Triton.Setup.Keyspace do
   def setup(schema_module) do
     blueprint = schema_module.__struct__
     try do
-      node_config =
+      cluster =
         Application.get_env(:triton, :clusters)
         |> Enum.find(&(&1[:conn] == blueprint.__conn__))
-        |> Keyword.take([:nodes, :authentication])
+      name = cluster |> Keyword.get(:conn)
+      node_config = cluster |> Keyword.put(:name, name)
 
-      node_config = Keyword.put(node_config, :nodes, [node_config[:nodes] |> Enum.random()])
       {:ok, _apps} = Application.ensure_all_started(:xandra)
-      {:ok, conn} = Xandra.start_link(node_config)
+      {:ok, _conn} =
+        case Xandra.Cluster.start_link(node_config) do
+          {:ok, pid} -> {:ok, pid}
+          {:error, {:already_started, pid}} -> {:ok, pid}
+        end
 
       statement = build_cql(schema_module)
-      Xandra.execute!(conn, statement, _params = [])
+      Xandra.Cluster.execute!(name, statement, _params = [])
     rescue
       err -> IO.inspect(err)
     end
