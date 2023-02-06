@@ -298,4 +298,44 @@ defmodule Triton.Executor.Tests do
 
     assert(actual === {:error, "Batch too large"})
   end
+
+  test "query options missing a consistency should get set a default one" do
+    validate_consistency =
+      fn query_type, default_consistency ->
+        Application.put_env(:triton, :read_consistency, default_consistency)
+        Application.put_env(:triton, :write_consistency, default_consistency)
+
+        empty_options = []
+        result = Triton.Executor.set_consistency(empty_options, query_type)
+        expected_result = [consistency: default_consistency]
+        assert result == expected_result
+      end
+
+    validate_consistency.(:select, :quorum)
+    validate_consistency.(:count, :quorum)
+    validate_consistency.(:insert, :quorum)
+    validate_consistency.(:update, :quorum)
+    validate_consistency.(:delete, :quorum)
+  end
+
+  test "query options with passed in consistency should remain" do
+    validate_incoming_consistency_remains  =
+      fn query_type, incoming_consistency, default_consistency ->
+        Application.put_env(:triton, :read_consistency, default_consistency)
+        Application.put_env(:triton, :write_consistency, default_consistency)
+
+        options = [consistency: incoming_consistency]
+        result = Triton.Executor.set_consistency(options, query_type)
+        expected_result = [consistency: incoming_consistency]
+        assert result == expected_result
+      end
+
+    incoming_consistency = :quorum
+    default_consistency = :one
+    validate_incoming_consistency_remains.(:select, incoming_consistency, default_consistency)
+    validate_incoming_consistency_remains.(:count, incoming_consistency, default_consistency)
+    validate_incoming_consistency_remains.(:insert, incoming_consistency, default_consistency)
+    validate_incoming_consistency_remains.(:update, incoming_consistency, default_consistency)
+    validate_incoming_consistency_remains.(:delete, incoming_consistency, default_consistency)
+  end
 end

@@ -274,7 +274,8 @@ defmodule Triton.Executor do
   end
 
   defp execute_cql(cluster, :stream, cql, nil, options) do
-    with pages <- Xandra.Cluster.stream_pages!(cluster, cql, [], options) do
+    with options <- set_consistency(options, :stream),
+      pages <- Xandra.Cluster.stream_pages!(cluster, cql, [], options) do
       results = pages
         |> Stream.flat_map(fn page -> Enum.to_list(page) |> format_results end)
       {:ok, results}
@@ -282,7 +283,8 @@ defmodule Triton.Executor do
   end
   defp execute_cql(cluster, :stream, cql, prepared, options) do
     Xandra.Cluster.run(cluster, fn conn ->
-      with {:ok, statement} <- Xandra.prepare(conn, cql, options),
+      with options <- set_consistency(options, :stream),
+           {:ok, statement} <- Xandra.prepare(conn, cql, options),
            pages <- Xandra.stream_pages!(conn, statement, atom_to_string_keys(prepared), options)
       do
         results = pages
@@ -293,7 +295,8 @@ defmodule Triton.Executor do
   end
 
   defp execute_cql(cluster, :select, cql, nil, options) do
-    with {:ok, page} <- Xandra.Cluster.execute(cluster, cql, [], options),
+    with options <- set_consistency(options, :select),
+      {:ok, page} <- Xandra.Cluster.execute(cluster, cql, [], options),
       formatted_page = Enum.to_list(page) |> format_results
     do
       case page.paging_state do
@@ -306,7 +309,8 @@ defmodule Triton.Executor do
   end
   defp execute_cql(cluster, :select, cql, prepared, options) do
     Xandra.Cluster.run(cluster, fn conn ->
-      with {:ok, statement} <- Xandra.prepare(conn, cql, Keyword.delete(options, :paging_state)),
+      with options <- set_consistency(options, :select),
+        {:ok, statement} <- Xandra.prepare(conn, cql, Keyword.delete(options, :paging_state)),
         {:ok, page} <- Xandra.execute(conn, statement, atom_to_string_keys(prepared), options),
         formatted_page = Enum.to_list(page) |> format_results
       do
@@ -321,29 +325,34 @@ defmodule Triton.Executor do
   end
 
   defp execute_cql(cluster, :count, cql, nil, options) do
-    with {:ok, page} <- Xandra.Cluster.execute(cluster, cql, [], options),
-         count <- page |> Enum.to_list |> List.first |> Map.get("count"),
-      do: {:ok, count}
+    with options <- set_consistency(options, :count),
+      {:ok, page} <- Xandra.Cluster.execute(cluster, cql, [], options),
+      count <- page |> Enum.to_list |> List.first |> Map.get("count"),
+    do: {:ok, count}
   end
   defp execute_cql(cluster, :count, cql, prepared, options) do
     Xandra.Cluster.run(cluster, fn conn ->
-      with {:ok, statement} <- Xandra.prepare(conn, cql, options),
-           {:ok, page} <- Xandra.execute(conn, statement, atom_to_string_keys(prepared), options),
-           count <- page |> Enum.to_list |> List.first |> Map.get("count"),
-        do: {:ok, count}
+      with options <- set_consistency(options, :count),
+        {:ok, statement} <- Xandra.prepare(conn, cql, options),
+        {:ok, page} <- Xandra.execute(conn, statement, atom_to_string_keys(prepared), options),
+        count <- page |> Enum.to_list |> List.first |> Map.get("count"),
+      do: {:ok, count}
     end)
   end
 
-  defp execute_cql(cluster, _, cql, nil, options) do
-    with {:ok, %Xandra.Void{}} <- Xandra.Cluster.execute(cluster, cql, [], options) do
+  defp execute_cql(cluster, type, cql, nil, options) do
+    with options <- set_consistency(options, type),
+      {:ok, %Xandra.Void{}} <- Xandra.Cluster.execute(cluster, cql, [], options)
+    do
       {:ok, :success}
     else
       error -> error |> execute_error
     end
   end
-  defp execute_cql(cluster, _, cql, prepared, options) do
+  defp execute_cql(cluster, type, cql, prepared, options) do
     Xandra.Cluster.run(cluster, fn conn ->
       with {:ok, statement} <- Xandra.prepare(conn, cql, options),
+           options <- set_consistency(options, type),
            {:ok, %Xandra.Void{}} <- Xandra.execute(conn, statement, atom_to_string_keys(prepared), options)
       do
         {:ok, :success}
@@ -395,6 +404,21 @@ defmodule Triton.Executor do
         Keyword.put(query, :prepared, :auto)
 
       true -> query
+    end
+  end
+
+  def set_consistency(options, query_type) do
+    options = options || []
+    with true <- Keyword.keyword?(options) && !Keyword.has_key?(options, :consistency) do
+      case query_type do
+        write_type when write_type in [:insert, :update, :delete] ->
+          Keyword.put_new(options, :consistency, Triton.Configuration.write_consistency())
+        read_type when read_type in [:select, :count, :stream] ->
+          Keyword.put_new(options, :consistency, Triton.Configuration.read_consistency())
+        _other_type -> options
+      end
+    else
+      _ -> options
     end
   end
 end
