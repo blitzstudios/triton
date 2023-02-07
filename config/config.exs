@@ -9,7 +9,9 @@ config :triton,
   enable_auto_prepare: false,
   disable_validation: false,
   disable_compilation_migrations: false,
-  apm_module: Triton.APM.Noop
+  apm_module: Triton.APM.Noop,
+  write_consistency: :one,
+  read_consistency: :one
 
 import_config "#{Mix.env}.exs"
 
