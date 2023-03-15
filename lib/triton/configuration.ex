@@ -42,4 +42,6 @@ defmodule Triton.Configuration do
     |> valid_consistency?()
   end
   def valid_consistency?(consistency), do: consistency in @consistency_types
+
+  def transform_streams?(), do: enabled?(:transform_streams)
 end
