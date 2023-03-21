@@ -6,14 +6,16 @@ defmodule Triton.Executor do
       def all(query, options \\ []) do
         case Triton.Executor.execute(query, options) do
           {:error, err} -> {:error, err.message}
-          {:ok, results} -> {:ok, transform_results(query, results)}
+          {:ok, results} -> {:ok, transform_results(query, results, options)}
         end
       end
 
       def stream(query, options \\ []) do
-        case Triton.Executor.execute([{:stream, true} | query], options) do
+        query = [{:stream, true} | query]
+
+        case Triton.Executor.execute(query, options) do
           {:error, err} -> {:error, err.message}
-          {:ok, results} -> {:ok, transform_results(query, results)}
+          {:ok, results} -> {:ok, transform_results(query, results, options)}
         end
       end
 
@@ -52,25 +54,66 @@ defmodule Triton.Executor do
         end
       end
 
-      defp transform_results(query, results) when is_list(results) do
-        transforms =
-          Triton.Metadata.fields(query[:__schema_module__])
-          |> Enum.filter(fn {k, field} -> not is_nil(field[:opts][:transform]) end)
-          |> Enum.map(fn {k, field} -> {k, field[:opts][:transform]} end)
-
+      defp transform_results(_query, _results, _options \\ [])
+      defp transform_results(query, results, _) when is_list(results) do
+        transforms = field_transforms(query)
         case Enum.any?(transforms) do
           false -> results
           true ->
             results
             |> Enum.map(fn result ->
-                 transforms
-                 |> Enum.reduce(result, fn {k, transform}, acc ->
-                      acc |> Map.put(k, transform.(acc[k]))
-                    end)
-               end)
+              transform_entity(result, transforms)
+            end)
         end
       end
-      defp transform_results(_, results), do: results
+      defp transform_results(query, results, options) do
+        default_transform_streams? =
+          Triton.Metadata.transform_streams(query[:__schema_module__])
+          |> case do
+            true -> true
+            false -> false
+            _ -> Triton.Configuration.transform_streams?()
+          end
+
+        # first checks passed in query options
+        # then table setting (if set)
+        # then application setting
+        transform_stream? =
+          Access.get(
+            options,
+            :transform_streams,
+            default_transform_streams?
+          )
+
+        with :stream <- Triton.Helper.query_type(query),
+          true <- transform_stream?
+        do
+          transforms = field_transforms(query)
+          case Enum.any?(transforms) do
+            false -> results
+            true ->
+              results
+              |> Stream.map(fn result ->
+                transform_entity(result, transforms)
+              end)
+          end
+        else
+          _ -> results
+        end
+      end
+
+      defp field_transforms(query) do
+        Triton.Metadata.fields(query[:__schema_module__])
+        |> Enum.filter(fn {k, field} -> not is_nil(field[:opts][:transform]) end)
+        |> Enum.map(fn {k, field} -> {k, field[:opts][:transform]} end)
+      end
+
+      defp transform_entity(entity, transforms) when is_list(transforms) do
+        Enum.reduce(transforms, entity, fn {k, transform}, acc ->
+          Map.put(acc, k, transform.(acc[k]))
+        end)
+      end
+      defp transform_entity(entity, _transforms), do: entity
     end
   end
 

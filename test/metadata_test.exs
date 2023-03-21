@@ -44,6 +44,24 @@ defmodule Triton.Metadata.Test do
     end
   end
 
+  defmodule TestTableWithTransformStreams do
+    use Triton.Table
+
+    table :test_table, [transform_streams: true] do
+      field :id1, :text
+      partition_key [:id1]
+    end
+  end
+
+  defmodule TestTableWithTransformStreamsFalse do
+    use Triton.Table
+
+    table :test_table, [transform_streams: false] do
+      field :id1, :text
+      partition_key [:id1]
+    end
+  end
+
   test "should get metadata" do
     assert(Triton.Metadata.metadata(TestTable) === TestTable.Metadata)
     assert(Triton.Metadata.metadata(TestView) === TestView.Metadata)
@@ -85,5 +103,11 @@ defmodule Triton.Metadata.Test do
     }
     assert(Triton.Metadata.fields(TestTable) === table_fields)
     assert(Triton.Metadata.fields(TestView) === view_fields)
+  end
+
+  test "verify transform_streams table setting" do
+    assert(Triton.Metadata.transform_streams(TestTable) === nil)
+    assert(Triton.Metadata.transform_streams(TestTableWithTransformStreams) === true)
+    assert(Triton.Metadata.transform_streams(TestTableWithTransformStreamsFalse) === false)
   end
 end

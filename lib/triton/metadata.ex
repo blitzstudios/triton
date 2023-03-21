@@ -82,4 +82,22 @@ defmodule Triton.Metadata do
       :materialized_view -> true
     end
   end
+
+  def transform_streams(schema_module) do
+    meta = metadata(schema_module)
+    case is_materialized_view(schema_module) do
+      false ->
+        meta.__struct__
+          .__schema__.__struct__.__transform_streams__
+      true ->
+        meta.__struct__
+          .__from_metadata__.__struct__
+          .__schema__.__struct__.__transform_streams__
+    end
+    |> case do
+      yes when yes in [true, "true"] -> true
+      no when no in [false, "false"] -> false
+      _ -> nil
+    end
+  end
 end
