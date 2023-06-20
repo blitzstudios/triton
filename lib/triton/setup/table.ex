@@ -7,28 +7,47 @@ defmodule Triton.Setup.Table do
   @doc """
   Attempts to create tables at compile time by connecting to DB with Xandra
   """
-  def setup(blueprint) do
+  def setup(schema_module) do
+    blueprint = Triton.Metadata.schema(schema_module).__struct__
     try do
-      node_config =
+      cluster =
         Application.get_env(:triton, :clusters)
         |> Enum.find(&(&1[:conn] == blueprint.__keyspace__.__struct__.__conn__))
-        |> Keyword.take([:nodes, :authentication, :keyspace])
 
-      node_config = Keyword.put(node_config, :nodes, [node_config[:nodes] |> Enum.random()])
-      {:ok, _apps} = Application.ensure_all_started(:xandra)
-      {:ok, conn} = Xandra.start_link(node_config)
+      setup_p(schema_module, cluster)
 
-      statement = build_cql(blueprint |> Map.delete(:__struct__))
-      Xandra.execute!(conn, "USE #{node_config[:keyspace]};", _params = [])
-      Xandra.execute!(conn, statement, _params = [])
+      if(dual_writes_enabled() && blueprint.__dual_write_keyspace__) do
+        dual_write_cluster =
+          Application.get_env(:triton, :clusters)
+          |> Enum.find(&(&1[:conn] == blueprint.__dual_write_keyspace__.__struct__.__conn__))
+
+        setup_p(schema_module, dual_write_cluster)
+      end
+
     rescue
       err -> IO.inspect(err)
     end
   end
 
-  ## PRIVATE - Build CQL
+  defp setup_p(schema_module, cluster) do
+    blueprint = Triton.Metadata.schema(schema_module).__struct__
 
-  defp build_cql(blueprint) do
+    node_config =
+      cluster
+      |> Keyword.take([:nodes, :authentication, :keyspace])
+
+    node_config = Keyword.put(node_config, :nodes, [node_config[:nodes] |> Enum.random()])
+    {:ok, _apps} = Application.ensure_all_started(:xandra)
+    {:ok, conn} = Xandra.start_link(node_config)
+
+    statement = build_cql(schema_module)
+    Xandra.execute!(conn, "USE #{node_config[:keyspace]};", _params = [])
+    Xandra.execute!(conn, statement, _params = [])
+  end
+
+  def build_cql(schema_module) do
+    blueprint = Triton.Metadata.schema(schema_module).__struct__ |> Map.from_struct
+
     create_cql(blueprint[:__name__]) <>
     " (" <>
     fields_cql(blueprint[:__fields__]) <>
@@ -66,4 +85,12 @@ defmodule Triton.Setup.Table do
     "CLUSTERING ORDER BY (" <> fields_and_order <> ")"
   end
   defp with_option_cql({option, value}), do: "#{String.upcase(to_string(option))} = #{value}"
+
+  defp dual_writes_enabled() do
+    case Application.get_env(:triton, :enable_dual_writes) do
+      true -> true
+      "true" -> true
+      _ -> false
+    end
+  end
 end

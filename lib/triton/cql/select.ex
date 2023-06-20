@@ -1,6 +1,6 @@
 defmodule Triton.CQL.Select do
   def build(query) do
-    schema = query[:__schema__].__fields__
+    schema = Triton.Metadata.fields(query[:__schema_module__])
 
     [
       select(query[:select], query[:count], query[:__table__], schema),
@@ -26,7 +26,22 @@ defmodule Triton.CQL.Select do
          end)
     ["SELECT ", filtered_fields, " FROM ", to_string(table)]
   end
-  defp select(_, _, table, _), do: ["SELECT * FROM ", to_string(table)]
+  defp select(_, _, table, schema) do
+    schema_fields =
+      schema
+      |> Enum.sort_by(fn
+           {k, _v} -> k
+           k -> k
+      end, &>/2)
+      |> Enum.reduce(:first, fn
+           {k, _}, :first -> [to_string(k)]
+           k, :first -> [to_string(k)]
+           {k, _}, acc -> ["#{k}, " | acc]
+           k, acc -> ["#{k}, " | acc]
+      end)
+
+    ["SELECT ", schema_fields, " FROM ", to_string(table)]
+  end
 
   defp where(fragments) when is_list(fragments) do
     [
@@ -41,7 +56,7 @@ defmodule Triton.CQL.Select do
   defp where(_), do: []
   defp where_fragment({k, v}) when is_list(v), do: v |> Enum.map(fn {c, v} -> where_fragment({k, c, v}) end)
   defp where_fragment({k, v}), do: [to_string(k), " = ", value(v)]
-  defp where_fragment({k, :in, v}) do
+  defp where_fragment({k, :in, v}) when is_list(v) do
     [
       to_string(k),
       " IN (",
@@ -53,6 +68,7 @@ defmodule Triton.CQL.Select do
       ")"
     ]
   end
+  defp where_fragment({k, :in, v}), do: [to_string(k), " IN ", value(v)]
   defp where_fragment({k, c, v}), do: [to_string(k), " ", to_string(c), " ",  value(v)]
 
   defp order_by({field, direction}), do: [" ORDER BY ", to_string(field), " ", to_string(direction)]
@@ -66,8 +82,5 @@ defmodule Triton.CQL.Select do
   defp allow_filtering(true), do: [" ALLOW FILTERING"]
   defp allow_filtering(_), do: []
 
-  defp value(v) when is_binary(v), do: ["'", v, "'"]
-  defp value(v) when is_boolean(v), do: [to_string(v)]
-  defp value(v) when is_atom(v), do: [":", to_string(v)]
-  defp value(v), do: [to_string(v)]
+  defp value(v), do: [Triton.CQL.Encode.encode(v) |> to_string]
 end

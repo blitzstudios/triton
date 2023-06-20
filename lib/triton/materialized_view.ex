@@ -6,13 +6,32 @@ defmodule Triton.MaterializedView do
     end
   end
 
+  # %Triton.CQL.Select.Tests.TestView.MaterializedView{
+  #   __fields__: [:id2],
+  #   __from__: Triton.CQL.Select.Tests.TestTable,
+  #   __name__: :test_mv,
+  #   __partition_key__: [:id2]
+  # }
+  # %Triton.CQL.Select.Tests.TestView.Metadata{
+  #   __from_metadata__: Triton.CQL.Select.Tests.TestTable.Metadata,
+  #   __schema__: Triton.CQL.Select.Tests.TestView.MaterializedView,
+  #   __schema_module__: Triton.CQL.Select.Tests.TestView,
+  #   __table__: :test_mv,
+  #   __type__: :materialized_view
+  # }
+
   defmacro materialized_view(name, [from: from], [do: block]) do
     quote do
+      outer = __MODULE__
+
       defmodule Metadata do
         @metadata []
         Module.put_attribute(__MODULE__, :metadata, [
+          { :__type__, :materialized_view },
           { :__table__, unquote(name) },
-          { :__schema_module__, unquote(from) }
+          { :__from_metadata__, Module.concat(unquote(from), "Metadata")},
+          { :__schema_module__, outer },
+          { :__schema__, Module.concat(outer, "MaterializedView")}
         ])
         defstruct Module.get_attribute(__MODULE__, :metadata)
       end
@@ -30,7 +49,12 @@ defmodule Triton.MaterializedView do
           | Module.get_attribute(__MODULE__, :materialized_view)
         ])
 
-        def __after_compile__(_, _), do: Triton.Setup.MaterializedView.setup(__MODULE__.__struct__)
+        def __after_compile__(_, _) do
+          case Triton.Configuration.disable_compilation_migrations?() do
+            true -> :noop
+            false -> Triton.Setup.MaterializedView.setup(unquote(__CALLER__.module))
+          end
+        end
 
         defstruct Module.get_attribute(__MODULE__, :materialized_view)
       end

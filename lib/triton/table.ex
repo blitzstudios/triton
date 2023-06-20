@@ -6,7 +6,26 @@ defmodule Triton.Table do
     end
   end
 
-  defmacro table(name, [keyspace: keyspace], [do: block]) do
+  # %Triton.CQL.Select.Tests.TestTable.Table{
+  #   __cluster_columns__: [:id2],
+  #   __dual_write_keyspace__: nil,
+  #   __fields__: %{id1: %{opts: [], type: :text}, id2: %{opts: [], type: :bigint}},
+  #   __keyspace__: Triton.CQL.Select.Tests.TestKeyspace,
+  #   __name__: :test_table,
+  #   __partition_key__: [:id]
+  # }
+  # %Triton.CQL.Select.Tests.TestTable.Metadata{
+  #   __schema__: Triton.CQL.Select.Tests.TestTable.Table,
+  #   __schema_module__: Triton.CQL.Select.Tests.TestTable,
+  #   __table__: :test_table,
+  #   __type__: :table
+  # }
+
+  defmacro table(name, params, [do: block]) do
+    dual_write_keyspace = params[:dual_write_keyspace]
+    keyspace = params[:keyspace]
+    transform_streams = params[:transform_streams]
+
     quote do
       outer = __MODULE__
 
@@ -14,8 +33,10 @@ defmodule Triton.Table do
         @metadata []
 
         Module.put_attribute(__MODULE__, :metadata, [
+          { :__type__, :table },
           { :__table__, unquote(name) },
-          { :__schema_module__, outer }
+          { :__schema_module__, outer },
+          { :__schema__, Module.concat(outer, Table)}
         ])
         defstruct Module.get_attribute(__MODULE__, :metadata)
       end
@@ -30,12 +51,19 @@ defmodule Triton.Table do
 
         Module.put_attribute(__MODULE__, :table, [
           { :__keyspace__, unquote(keyspace) },
+          { :__dual_write_keyspace__, unquote(dual_write_keyspace) },
           { :__name__, unquote(name) },
+          { :__transform_streams__, unquote(transform_streams)},
           { :__fields__, Module.get_attribute(__MODULE__, :fields) }
           | Module.get_attribute(__MODULE__, :table)
         ])
 
-        def __after_compile__(_, _), do: Triton.Setup.Table.setup(__MODULE__.__struct__)
+        def __after_compile__(_, _) do
+          case Triton.Configuration.disable_compilation_migrations?() do
+            true -> :noop
+            false -> Triton.Setup.Table.setup(unquote(__CALLER__.module))
+          end
+        end
 
         defstruct Module.get_attribute(__MODULE__, :table)
       end

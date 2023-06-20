@@ -1,7 +1,7 @@
 defmodule Triton.Validate do
   def coerce(query) do
     with {:ok, query} <- validate(query) do
-      fields = query[:__schema__].__fields__
+      fields = Triton.Metadata.fields(query[:__schema_module__])
       {:ok, Enum.map(query, fn x -> coerce(x, fields) end)}
     end
   end
@@ -9,7 +9,11 @@ defmodule Triton.Validate do
   def validate(query) do
     case Triton.Helper.query_type(query) do
       {:error, err} -> {:error, err.message}
-      type -> validate(type, query, query[:__schema__].__fields__)
+      type ->
+        case Application.get_env(:triton, :disable_validation) do
+          true -> {:ok, query}
+          _ -> validate(type, query, Triton.Metadata.fields(query[:__schema_module__]))
+        end
     end
   end
 
@@ -32,15 +36,30 @@ defmodule Triton.Validate do
   end
   def validate(_, query, _), do: {:ok, query}
 
-  defp coerce({:__schema__, v}, _), do: {:__schema__, v}
+  defp coerce({:__schema_module__, v}, _), do: {:__schema_module__, v}
   defp coerce({:__table__, v}, _), do: {:__table__, v}
   defp coerce({k, v}, fields), do: {k, coerce(v, fields)}
 
   defp coerce(fragments, fields) when is_list(fragments), do: fragments |> Enum.map(fn fragment -> coerce_fragment(fragment, fields) end)
   defp coerce(non_list, _), do: non_list
 
-  defp coerce_fragment({k, v}, fields) when is_list(v), do: {k, v |> Enum.map(fn {c, v} -> coerce_fragment({k, c, v}, fields) end)}
+  defp coerce_fragment({k, vs}, fields) when is_list(vs) do
+    coerced =
+      vs
+      |> Enum.map(fn
+           {c, v} -> coerce_fragment({k, c, v}, fields)
+           # This happens when a prepared where in binding is coerced
+           #    TestTable
+           #    |> prepared(p_id2s: [1, 2, 3])
+           #    |> select(:all)
+           #    |> where(id1: "1", id2: [in: :p_id2s])
+           v -> coerced_value(v, fields[k][:type])
+      end)
+
+    {k, coerced}
+  end
   defp coerce_fragment({k, v}, fields), do: {k, coerced_value(v, fields[k][:type])}
+  defp coerce_fragment({k, c, vs}, fields) when is_list(vs), do: {c, vs |> Enum.map(fn v -> coerced_value(v, fields[k][:type]) end)}
   defp coerce_fragment({k, c, v}, fields), do: {c, coerced_value(v, fields[k][:type])}
   defp coerce_fragment(x, _), do: x
 
