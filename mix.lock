@@ -1,8 +1,8 @@
 %{
   "connection": {:hex, :connection, "1.0.4", "a1cae72211f0eef17705aaededacac3eb30e6625b04a6117c1b2db6ace7d5976", [:mix], [], "hexpm", "4a0850c9be22a43af9920a71ab17c051f5f7d45c209e40269a1938832510e4d9"},
-  "db_connection": {:hex, :db_connection, "2.1.0", "122e2f62c4906bf2e49554f1e64db5030c19229aa40935f33088e7d543aa79d0", [:mix], [{:connection, "~> 1.0.2", [hex: :connection, repo: "hexpm", optional: false]}], "hexpm", "f398f3144db606de82ed42c2ddc69767f0607abdb796e8220de5f0fcf80f5ba4"},
+  "db_connection": {:git, "https://github.com/blitzstudios/db_connection.git", "55bc7ec675f627d4af7d1f994bb72a5c85030e02", [ref: "55bc7ec675f627d4af7d1f994bb72a5c85030e02"]},
   "earmark": {:hex, :earmark, "1.2.4", "99b637c62a4d65a20a9fb674b8cffb8baa771c04605a80c911c4418c69b75439", [:mix], [], "hexpm", "1b34655872366414f69dd987cb121c049f76984b6ac69f52fff6d8fd64d29cfd"},
   "ex_doc": {:hex, :ex_doc, "0.18.1", "37c69d2ef62f24928c1f4fdc7c724ea04aecfdf500c4329185f8e3649c915baf", [:mix], [{:earmark, "~> 1.1", [hex: :earmark, repo: "hexpm", optional: false]}], "hexpm", "f050061c87ad39478c942995b5a20c40f2c0bc06525404613b8b0474cb8bd796"},
   "vex": {:hex, :vex, "0.6.0", "4e79b396b2ec18cd909eed0450b19108d9631842598d46552dc05031100b7a56", [:mix], [], "hexpm", "7e4d9b50dd72cf931b52aba3470513686007f2ad54832de37cdb659cc85ba73e"},
-  "xandra": {:hex, :xandra, "0.12.0", "995d3392fe6d5fc1f7f341290c09aa489fbc8c231db05b6b5eeb88e42b1045ac", [:mix], [{:db_connection, "~> 2.0", [hex: :db_connection, repo: "hexpm", optional: false]}, {:decimal, "~> 1.7", [hex: :decimal, repo: "hexpm", optional: true]}], "hexpm", "9a79716b59bc83451888e1fb938793223729d410f532e7f30aa47b700be284da"},
+  "xandra": {:git, "https://github.com/blitzstudios/xandra.git", "8b31462c9b7a93418a3edcb1b2e682f22526c18b", [ref: "8b31462c9b7a93418a3edcb1b2e682f22526c18b"]},
 }
