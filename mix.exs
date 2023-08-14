@@ -27,7 +27,7 @@ defmodule Triton.Mixfile do
 
   defp deps do
     [
-      {:xandra, "~> 0.12"},
+      {:xandra, github: "lexhide/xandra", ref: "67e9cf14a60c09bd69aa51fb1e73d85e54969e8d"},
       {:vex, "~> 0.6"},
       {:ex_doc, ">= 0.0.0", only: :dev}
     ]
