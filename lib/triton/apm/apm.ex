@@ -55,8 +55,8 @@ defmodule Triton.APM do
 
     state = :sys.get_state(conn)
     {active, waiting} = state.pools |> Enum.reduce({0, 0}, fn {_, pool}, {active, waiting} ->
-      pool_res = DBConnection.ConnectionPool.get_metrics(pool)
-      %{active_connections: active_connections, waiting_connections: waiting_connections} = pool_res
+      pool_res = DBConnection.ConnectionPool.get_connection_metrics(pool)
+      %{active: active_connections, waiting: waiting_connections} = pool_res
       {active + active_connections, waiting + waiting_connections}
     end)
 
