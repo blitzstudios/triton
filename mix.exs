@@ -27,7 +27,7 @@ defmodule Triton.Mixfile do
 
   defp deps do
     [
-      {:xandra, github: "blitzstudios/xandra", tag: "xandra-pool-metrics"},
+      {:xandra, github: "blitzstudios/xandra", tag: "2.4.2-conn-metrics"},
       {:vex, "~> 0.6"},
       {:ex_doc, ">= 0.0.0", only: :dev}
     ]
