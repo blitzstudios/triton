@@ -8,7 +8,9 @@ defmodule Triton.APM do
     duration_ms: integer(),
     result_type: :ok | :error | :unknown,
     is_batch: boolean(),
-    batch_size: integer()
+    batch_size: integer(),
+    active_connections: integer(),
+    waiting_connections: integer(),
   }
 
   @enforce_keys [:keyspace, :schema, :dml_type, :duration_ms, :result_type]
@@ -19,7 +21,9 @@ defmodule Triton.APM do
     :duration_ms,
     :result_type,
     :is_batch,
-    :batch_size
+    :batch_size,
+    :active_connections,
+    :waiting_connections
   ]
 
   @callback record(Triton.APM.t()) :: :ok | {:error, any}
@@ -49,6 +53,21 @@ defmodule Triton.APM do
         _ -> :unknown
       end
 
+    state = :sys.get_state(conn)
+
+    # Attempt to fetch metrics; fallback to 0 if timeout occurs
+    {active, waiting} =
+      try do
+        state.pools
+        |> Enum.reduce({0, 0}, fn {_, pool}, {active, waiting} ->
+          pool_res = DBConnection.ConnectionPool.get_connection_metrics(pool)
+          %{active: active_connections, waiting: waiting_connections} = pool_res
+          {active + active_connections, waiting + waiting_connections}
+        end)
+      rescue
+        _ -> {0, 0}
+      end
+
     %__MODULE__{
       keyspace: keyspace!(query, conn) |> to_string,
       dml_type: Triton.Helper.query_type(query) |> to_string,
@@ -56,7 +75,9 @@ defmodule Triton.APM do
       schema: query[:__table__] |> to_string,
       result_type: result_type,
       is_batch: batch_size != :single_query,
-      batch_size: batch_size == :single_query && 0 || batch_size
+      batch_size: batch_size == :single_query && 0 || batch_size,
+      active_connections: active,
+      waiting_connections: waiting
     }
   end
 
