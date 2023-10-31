@@ -54,11 +54,19 @@ defmodule Triton.APM do
       end
 
     state = :sys.get_state(conn)
-    {active, waiting} = state.pools |> Enum.reduce({0, 0}, fn {_, pool}, {active, waiting} ->
-      pool_res = DBConnection.ConnectionPool.get_connection_metrics(pool)
-      %{active: active_connections, waiting: waiting_connections} = pool_res
-      {active + active_connections, waiting + waiting_connections}
-    end)
+
+    # Attempt to fetch metrics; fallback to 0 if timeout occurs
+    {active, waiting} =
+      try do
+        state.pools
+        |> Enum.reduce({0, 0}, fn {_, pool}, {active, waiting} ->
+          pool_res = DBConnection.ConnectionPool.get_connection_metrics(pool)
+          %{active: active_connections, waiting: waiting_connections} = pool_res
+          {active + active_connections, waiting + waiting_connections}
+        end)
+      rescue
+        _ -> {0, 0}
+      end
 
     %__MODULE__{
       keyspace: keyspace!(query, conn) |> to_string,
