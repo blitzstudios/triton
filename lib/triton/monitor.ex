@@ -9,6 +9,10 @@ defmodule Triton.Monitor do
     health_check_interval: 1000
   ]
 
+  def start_link([conn: conn, keyspace: keyspace, delay: delay, interval: interval]) do
+    start_link(conn, keyspace, delay, interval)
+  end
+
   def start_link(conn, keyspace, delay, interval) do
     GenServer.start_link(__MODULE__, [
       conn: conn,

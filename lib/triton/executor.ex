@@ -327,7 +327,7 @@ defmodule Triton.Executor do
   defp execute_cql(cluster, :stream, cql, prepared, options) do
     Xandra.Cluster.run(cluster, fn conn ->
       with options <- set_consistency(options, :stream),
-           {:ok, statement} <- Xandra.prepare(conn, cql, options),
+           {:ok, statement} <- prepare_query(conn, cql, options),
            pages <- Xandra.stream_pages!(conn, statement, atom_to_string_keys(prepared), options)
       do
         results = pages
@@ -353,7 +353,7 @@ defmodule Triton.Executor do
   defp execute_cql(cluster, :select, cql, prepared, options) do
     Xandra.Cluster.run(cluster, fn conn ->
       with options <- set_consistency(options, :select),
-        {:ok, statement} <- Xandra.prepare(conn, cql, Keyword.delete(options, :paging_state)),
+        {:ok, statement} <- prepare_query(conn, cql, options),
         {:ok, page} <- Xandra.execute(conn, statement, atom_to_string_keys(prepared), options),
         formatted_page = Enum.to_list(page) |> format_results
       do
@@ -376,7 +376,7 @@ defmodule Triton.Executor do
   defp execute_cql(cluster, :count, cql, prepared, options) do
     Xandra.Cluster.run(cluster, fn conn ->
       with options <- set_consistency(options, :count),
-        {:ok, statement} <- Xandra.prepare(conn, cql, options),
+        {:ok, statement} <- prepare_query(conn, cql, options),
         {:ok, page} <- Xandra.execute(conn, statement, atom_to_string_keys(prepared), options),
         count <- page |> Enum.to_list |> List.first |> Map.get("count"),
       do: {:ok, count}
@@ -394,7 +394,7 @@ defmodule Triton.Executor do
   end
   defp execute_cql(cluster, type, cql, prepared, options) do
     Xandra.Cluster.run(cluster, fn conn ->
-      with {:ok, statement} <- Xandra.prepare(conn, cql, options),
+      with {:ok, statement} <- prepare_query(conn, cql, options),
            options <- set_consistency(options, type),
            {:ok, %Xandra.Void{}} <- Xandra.execute(conn, statement, atom_to_string_keys(prepared), options)
       do
@@ -420,6 +420,7 @@ defmodule Triton.Executor do
   defp atom_to_string_keys(list), do: list |> Enum.map(fn {k, v} -> {to_string(k), v} end) |> Enum.into(%{})
 
   defp cluster_for(query), do: Triton.Metadata.conn(query[:__schema_module__])
+
   defp dual_execute_cluster_for(query) do
     Triton.Metadata.secondary_conn(query[:__schema_module__])
   end
@@ -448,6 +449,16 @@ defmodule Triton.Executor do
 
       true -> query
     end
+  end
+
+  """
+  Some options aren't accepted for `Xandra.prepare` (like :consistency). This is filtered out here.
+  """
+  def prepare_query(conn, cql, options) do
+    options = options
+              |> Keyword.delete(:paging_state)
+              |> Keyword.delete(:consistency)
+    Xandra.prepare(conn, cql, options)
   end
 
   def set_consistency(options, query_type) do
