@@ -108,6 +108,7 @@ defmodule Triton.Executor do
         |> Enum.map(fn {k, field} -> {k, field[:opts][:transform]} end)
       end
 
+      @dialyzer {:no_match, transform_entity: 2}
       defp transform_entity(entity, transforms) when is_list(transforms) do
         Enum.reduce(transforms, entity, fn {k, transform}, acc ->
           Map.put(acc, k, transform.(acc[k]))
@@ -413,6 +414,7 @@ defmodule Triton.Executor do
   end
   defp execute_error(error), do: error
 
+  @dialyzer {:no_match, format_results: 1}
   defp format_results(list) when is_list(list), do: list |> Enum.map(fn map -> string_to_atom_keys(map) end)
   defp format_results(_), do: nil
 
