@@ -28,8 +28,9 @@ defmodule Triton.Mixfile do
   defp deps do
     [
       {:xandra, "~> 0.12"},
-      {:vex, "~> 0.6"},
-      {:ex_doc, ">= 0.0.0", only: :dev}
+      {:vex, "~> 0.9.1"},
+      {:ex_doc, ">= 0.0.0", only: :dev},
+      {:dialyxir, "~> 1.4.1", only: [:dev, :test], runtime: false},
     ]
   end
 
