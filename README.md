@@ -401,3 +401,7 @@ This means that your build server will need access to your production DB if you 
 ## Consistency levels
 
 For dev, you may want to consider running ccm with more than 1 node if you are doing queries at anything more than consistency: :one.
+
+## Testing
+
+For testing, run `mix test` and `mix test --only integration` to run integration tests.
