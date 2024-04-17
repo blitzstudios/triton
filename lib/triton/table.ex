@@ -38,7 +38,6 @@ defmodule Triton.Table do
           { :__schema_module__, outer },
           { :__schema__, Module.concat(outer, Table)}
         ])
-        Module.register_attribute(__MODULE__, :__schema__, persist: true)
 
         defstruct Module.get_attribute(__MODULE__, :metadata)
       end
