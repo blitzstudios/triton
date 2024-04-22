@@ -134,7 +134,9 @@ defmodule Triton.Executor do
         |> Enum.reduce(Xandra.Batch.new(), fn ({cql, prepared}, acc) ->
           case prepared do
             nil -> Xandra.Batch.add(acc, cql)
-            prepared -> Xandra.Batch.add(acc, Xandra.prepare!(conn, cql, options), atom_to_string_keys(prepared))
+            prepared ->
+              {:ok, statement} = prepare_query(conn, cql, options)
+              Xandra.Batch.add(acc, statement, atom_to_string_keys(prepared))
           end
         end)
 
