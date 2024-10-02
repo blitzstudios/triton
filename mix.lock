@@ -7,5 +7,5 @@
   "nimble_options": {:hex, :nimble_options, "1.1.0", "3b31a57ede9cb1502071fade751ab0c7b8dbe75a9a4c2b5bbb0943a690b63172", [:mix], [], "hexpm", "8bbbb3941af3ca9acc7835f5655ea062111c9c27bcac53e004460dfd19008a99"},
   "telemetry": {:hex, :telemetry, "1.2.1", "68fdfe8d8f05a8428483a97d7aab2f268aaff24b49e0f599faa091f1d4e7f61c", [:rebar3], [], "hexpm", "dad9ce9d8effc621708f99eac538ef1cbe05d6a874dd741de2e689c47feafed5"},
   "vex": {:hex, :vex, "0.9.1", "cb65348ebd1c4002861b65bef36e524c29d9a879c90119b2d0e674e323124277", [:mix], [], "hexpm", "a0f9f3959d127ad6a6a617c3f607ecfb1bc6f3c59f9c3614a901a46d1765bafe"},
-  "xandra": {:git, "https://github.com/whatyouhide/xandra", "bee398403a82140779fd49664cc6dc560ac9bc8d", [ref: "bee398403a82140779fd49664cc6dc560ac9bc8d"]},
+  "xandra": {:git, "https://github.com/whatyouhide/xandra", "c08221d72df71331759fc9d2caaab7cb4f182021", [ref: "c08221d72df71331759fc9d2caaab7cb4f182021"]},
 }
