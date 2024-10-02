@@ -66,6 +66,7 @@ defmodule Triton.Table do
           end
         end
 
+        Module.register_attribute(__MODULE__, :table, persist: true)
         defstruct Module.get_attribute(__MODULE__, :table)
       end
     end
