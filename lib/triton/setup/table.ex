@@ -7,6 +7,8 @@ defmodule Triton.Setup.Table do
   @doc """
   Attempts to create tables at compile time by connecting to DB with Xandra
   """
+  alias Triton.Setup.DbConnection
+
   def setup(schema_module) do
     blueprint = Triton.Metadata.schema(schema_module).__struct__
     try do
@@ -38,11 +40,13 @@ defmodule Triton.Setup.Table do
 
     node_config = Keyword.put(node_config, :nodes, node_config[:nodes])
     {:ok, _apps} = Application.ensure_all_started(:xandra)
-    {:ok, conn} = Xandra.Cluster.start_link(node_config)
+    {:ok, cluster} = DbConnection.get_cluster(node_config)
 
     statement = build_cql(schema_module)
-    Xandra.Cluster.execute!(conn, "USE #{node_config[:keyspace]};", _params = [])
-    Xandra.Cluster.execute!(conn, statement, _params = [])
+    IO.puts "TABLE!!!!!!!!!"
+    Xandra.Cluster.execute!(cluster, "USE #{node_config[:keyspace]};", _params = [])
+    IO.puts "TABLE2!!!!!!!!!"
+    Xandra.Cluster.execute!(cluster, statement, _params = [])
   end
 
   def build_cql(schema_module) do

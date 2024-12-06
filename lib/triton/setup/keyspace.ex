@@ -1,4 +1,6 @@
 defmodule Triton.Setup.Keyspace do
+  alias Triton.Setup.DbConnection
+
   def setup(schema_module) do
     blueprint = schema_module.__struct__
     try do
@@ -9,10 +11,11 @@ defmodule Triton.Setup.Keyspace do
 
       node_config = Keyword.put(node_config, :nodes, node_config[:nodes])
       {:ok, _apps} = Application.ensure_all_started(:xandra)
-      {:ok, conn} = Xandra.Cluster.start_link(node_config)
+      {:ok, cluster} = DbConnection.get_cluster(node_config)
 
       statement = build_cql(schema_module)
-      Xandra.Cluster.execute!(conn, statement, _params = [])
+      IO.puts "KEYSPACE!!!!!!!!!"
+      Xandra.Cluster.execute!(cluster, statement, _params = [])
     rescue
       err -> IO.inspect(err)
     end

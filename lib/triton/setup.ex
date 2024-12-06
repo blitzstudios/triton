@@ -1,4 +1,6 @@
 defmodule Triton.Setup do
+  alias Triton.Setup.DbConnection
+
   defmacro __before_compile__(_) do
     module = __CALLER__.module
     statements = Module.get_attribute(module, :setup_statements)
@@ -17,8 +19,10 @@ defmodule Triton.Setup do
             node_config = Keyword.put(node_config, :nodes, node_config[:nodes])
 
             {:ok, _apps} = Application.ensure_all_started(:xandra)
-            {:ok, conn} = Xandra.Cluster.start_link(node_config)
+            {:ok, cluster} = DbConnection.get_cluster(node_config)
+            IO.puts "SETUP!!!!!!!!!"
             Xandra.Cluster.execute!(conn, "USE #{node_config[:keyspace]};", _params = [])
+            IO.puts "SETUP2!!!!!!!!!"
             Xandra.Cluster.execute!(conn, statement, _params = [])
           rescue
             err -> IO.inspect(err)
