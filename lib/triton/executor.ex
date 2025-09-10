@@ -476,5 +476,24 @@ defmodule Triton.Executor do
     else
       _ -> options
     end
+    |> then(& force_min_consistency/1)
+  end
+
+  defp force_min_consistency(options) do
+    case Triton.Configuration.min_consistency() do
+      :all ->
+        options |> Keyword.put(:consistency, :all)
+
+      :quorum ->
+        case options[:consistency] do
+          :all ->
+            options
+          _ ->
+            options |> Keyword.put(:consistency, :quorum)
+        end
+
+      _other ->
+        options
+    end
   end
 end

@@ -25,6 +25,7 @@ defmodule Triton.Configuration do
 
   def write_consistency(), do: consistency(:write_consistency)
   def read_consistency(), do: consistency(:read_consistency)
+  def min_consistency(), do: consistency(:min_consistency)
 
   def consistency(key) do
     consistency = Application.get_env(:triton, key)

@@ -14,12 +14,12 @@ defmodule Triton.Setup do
               |> Enum.find(&(&1[:conn] == Triton.Metadata.conn(block[:__schema_module__])))
               |> Keyword.take([:nodes, :authentication, :keyspace])
 
-            node_config = Keyword.put(node_config, :nodes, [node_config[:nodes] |> Enum.random()])
+            node_config = Keyword.put(node_config, :nodes, node_config[:nodes])
 
             {:ok, _apps} = Application.ensure_all_started(:xandra)
-            {:ok, conn} = Xandra.start_link(node_config)
-            Xandra.execute!(conn, "USE #{node_config[:keyspace]};", _params = [])
-            Xandra.execute!(conn, statement, _params = [])
+            {:ok, conn} = Xandra.Cluster.start_link(node_config)
+            Xandra.Cluster.execute!(conn, "USE #{node_config[:keyspace]};", _params = [])
+            Xandra.Cluster.execute!(conn, statement, _params = [])
           rescue
             err -> IO.inspect(err)
           end

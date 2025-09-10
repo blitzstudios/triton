@@ -7,12 +7,12 @@ defmodule Triton.Setup.Keyspace do
         |> Enum.find(&(&1[:conn] == blueprint.__conn__))
         |> Keyword.take([:nodes, :authentication])
 
-      node_config = Keyword.put(node_config, :nodes, [node_config[:nodes] |> Enum.random()])
+      node_config = Keyword.put(node_config, :nodes, node_config[:nodes])
       {:ok, _apps} = Application.ensure_all_started(:xandra)
-      {:ok, conn} = Xandra.start_link(node_config)
+      {:ok, conn} = Xandra.Cluster.start_link(node_config)
 
       statement = build_cql(schema_module)
-      Xandra.execute!(conn, statement, _params = [])
+      Xandra.Cluster.execute!(conn, statement, _params = [])
     rescue
       err -> IO.inspect(err)
     end

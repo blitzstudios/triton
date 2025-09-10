@@ -338,4 +338,48 @@ defmodule Triton.Executor.Tests do
     validate_incoming_consistency_remains.(:update, incoming_consistency, default_consistency)
     validate_incoming_consistency_remains.(:delete, incoming_consistency, default_consistency)
   end
+
+  describe "min_consistency" do
+    test ":all overrides lower consistency levels" do
+      Application.put_env(:triton, :min_consistency, :all)
+
+      for consistency <- [:all, :quorum, :one, :two],
+        query <- [:select, :count, :insert, :update, :delete]
+      do
+        result = Triton.Executor.set_consistency([consistency: consistency], query)
+        assert result[:consistency] == :all
+      end
+    end
+
+    test ":quorum doesnt override :all" do
+      Application.put_env(:triton, :min_consistency, :quorum)
+
+      for query <- [:select, :count, :insert, :update, :delete] do
+        result = Triton.Executor.set_consistency([consistency: :all], query)
+        assert result[:consistency] == :all
+      end
+    end
+
+    test ":quorum overrides lower consistency levels" do
+      Application.put_env(:triton, :min_consistency, :quorum)
+
+      for consistency <- [:quorum, :one, :two, :local_quorum],
+        query <- [:select, :count, :insert, :update, :delete]
+      do
+        result = Triton.Executor.set_consistency([consistency: consistency], query)
+        assert result[:consistency] == :quorum
+      end
+    end
+
+    test "only quorum and all supported" do
+      for min_consistency <- [:one, :two, :three, :local_one, :local_quorum],
+        consistency <- [:all, :quorum, :one, :two],
+        query <- [:select, :count, :insert, :update, :delete]
+      do
+        Application.put_env(:triton, :min_consistency, min_consistency)
+        result = Triton.Executor.set_consistency([consistency: consistency], query)
+        assert result[:consistency] == consistency
+      end
+    end
+  end
 end
