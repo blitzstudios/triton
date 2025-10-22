@@ -51,9 +51,6 @@ defmodule Triton.APM do
         _ -> :unknown
       end
 
-    shard_number = Triton.APM.ShardInfo.shard_number(query)
-    IO.inspect(shard_number, label: "shard_number_in_from_query!")
-
     %__MODULE__{
       keyspace: keyspace!(query, conn) |> to_string,
       dml_type: Triton.Helper.query_type(query) |> to_string,
@@ -62,7 +59,7 @@ defmodule Triton.APM do
       result_type: result_type,
       is_batch: batch_size != :single_query,
       batch_size: batch_size == :single_query && 0 || batch_size,
-      shard_number: shard_number
+      shard_number: Triton.APM.ShardInfo.shard_number(query)
     }
   end
 

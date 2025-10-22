@@ -8,22 +8,39 @@ defmodule Triton.APM.ShardInfo do
   # When your NIF is loaded, it will override this function.
   def shard_from_partition_key(_data), do: :erlang.nif_error(:nif_not_loaded)
 
+  @spec shard_number(keyword()) :: integer()
   def shard_number(query) do
-    case {Keyword.get(query, :where), Keyword.get(query, :prepared)} do
-      {where, prepared} when not is_nil(where) and not is_nil(prepared) ->
-        schema_module = query[:__schema_module__]
-        partition_key = (Triton.Metadata.schema(schema_module) |> Map.from_struct())[:__partition_key__]
-        IO.inspect(partition_key, label: "partition_key_in_from_query!")
-        IO.inspect(query, label: "query_in_from_query!")
-        partition_key
-          |> Enum.map(fn(key) ->
-            key_in_prepared = where[key]
-            prepared[key_in_prepared]
-        end)
-        |> Enum.map(fn(value) -> serialize_component(value) end)
-        |> shard_from_partition_key()
-      _ ->
-        -1
+    with  where <- Keyword.get(query, :where),
+          prepared <- Keyword.get(query, :prepared),
+          true <- not is_nil(where) and not is_nil(prepared),
+          partition_key <- partition_key(query),
+          {:ok, partition_key_values} <- partition_key_values(partition_key, where, prepared),
+          shard_number when is_integer(shard_number) <- shard_from_partition_key(partition_key_values) # nif can also return an error
+      do
+        shard_number
+      else
+        _ -> -1
+      end
+  end
+
+  defp partition_key(query) do
+    Triton.Metadata.schema(query[:__schema_module__])
+    |> Map.from_struct()
+    |> Map.get(:__partition_key__)
+  end
+
+  @spec partition_key_values(list(), keyword(), keyword()) :: {:ok, list()} | {:error, :cannot_extract_partition_key_values}
+  defp partition_key_values(partition_key, where, prepared) do
+    values =
+       partition_key
+      |> Enum.map(fn(key) ->
+        where[key] && prepared[where[key]]
+      end)
+      |> Enum.filter(& &1)
+    if length(values) == length(partition_key) do
+      {:ok, values |> Enum.map(&serialize_component(&1))}
+    else
+      {:error, :cannot_extract_partition_key_values}
     end
   end
 
