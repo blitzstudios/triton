@@ -8,7 +8,8 @@ defmodule Triton.APM do
     duration_ms: integer(),
     result_type: :ok | :error | :unknown,
     is_batch: boolean(),
-    batch_size: integer()
+    batch_size: integer(),
+    shard_number: integer()
   }
 
   @enforce_keys [:keyspace, :schema, :dml_type, :duration_ms, :result_type]
@@ -19,7 +20,8 @@ defmodule Triton.APM do
     :duration_ms,
     :result_type,
     :is_batch,
-    :batch_size
+    :batch_size,
+    :shard_number
   ]
 
   @callback record(Triton.APM.t()) :: :ok | {:error, any}
@@ -49,6 +51,9 @@ defmodule Triton.APM do
         _ -> :unknown
       end
 
+    shard_number = shard_number(query)
+    IO.inspect(shard_number, label: "shard_number_in_from_query!")
+
     %__MODULE__{
       keyspace: keyspace!(query, conn) |> to_string,
       dml_type: Triton.Helper.query_type(query) |> to_string,
@@ -56,7 +61,8 @@ defmodule Triton.APM do
       schema: query[:__table__] |> to_string,
       result_type: result_type,
       is_batch: batch_size != :single_query,
-      batch_size: batch_size == :single_query && 0 || batch_size
+      batch_size: batch_size == :single_query && 0 || batch_size,
+      shard_number: shard_number
     }
   end
 
@@ -81,5 +87,17 @@ defmodule Triton.APM do
       dual_keyspace_conn == conn -> dual_keyspace
       true -> nil
     end
+  end
+
+  defp shard_number(query) do
+    schema_module = query[:__schema_module__]
+    partition_key = (Triton.Metadata.schema(schema_module) |> Map.from_struct())[:__partition_key__]
+    IO.inspect(partition_key, label: "partition_key_in_from_query!")
+    IO.inspect(query, label: "query_in_from_query!")
+    partition_key
+      |> Enum.map(fn(key) ->
+        key_in_prepared = query[:where][key]
+        query[:prepared][key_in_prepared]
+    end)
   end
 end
