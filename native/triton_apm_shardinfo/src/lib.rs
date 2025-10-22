@@ -34,6 +34,14 @@ fn compute_partition_token(data: Vec<Binary>) -> Result<Token, &'static str> {
 }
 
 #[rustler::nif]
+fn test_partition_token(data: Vec<Binary>) -> NifResult<i64> {
+    match compute_partition_token(data) {
+        Ok(token) => Ok(token.value()),
+        Err(e) => Err(Error::Atom(e)),
+    }
+}
+
+#[rustler::nif]
 fn shard_from_partition_key(data: Vec<Binary>) -> NifResult<u32> {
     let num_shards = match env::var("SCYLLA_NUM_SHARDS") {
         Ok(val) => match val.parse::<u16>() {

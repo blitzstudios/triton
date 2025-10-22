@@ -7,6 +7,7 @@ defmodule Triton.APM.ShardInfo do
 
   # When your NIF is loaded, it will override this function.
   def shard_from_partition_key(_data), do: :erlang.nif_error(:nif_not_loaded)
+  def test_partition_token(_data), do: :erlang.nif_error(:nif_not_loaded)
 
   @spec shard_number(keyword()) :: integer()
   def shard_number(query) do
@@ -49,6 +50,6 @@ defmodule Triton.APM.ShardInfo do
     end
   end
 
-  defp serialize_component(value) when is_integer(value), do: <<value::integer-size(64)>>
-  defp serialize_component(value) when is_binary(value), do: value
+  def serialize_component(value) when is_integer(value), do: <<value::integer-size(64)>>
+  def serialize_component(value) when is_binary(value), do: value
 end
