@@ -25,12 +25,16 @@ defmodule Triton.APM.ShardInfo do
   end
 
   defp partition_key(query) do
-    schema_metadata = Triton.Metadata.schema(query[:__schema_module__])
+    schema_module = query[:__schema_module__]
+
+    schema_metadata = Triton.Metadata.schema(schema_module)
     |> Map.from_struct()
+
+    fields = Triton.Metadata.fields(schema_module)
 
     Map.get(schema_metadata, :__partition_key__)
     |> Enum.map(fn key ->
-      {key, schema_metadata[key][:type]}
+      {key, fields[key][:type]}
     end)
   end
 
