@@ -23,5 +23,13 @@ defmodule Triton.APM.ShardInfo.Tests do
     channel_id = ShardInfo.serialize_component(:bigint, 7386833339577004032)
     bucket_id = ShardInfo.serialize_component(:int, 1245)
     assert ShardInfo.test_partition_token([channel_id, bucket_id]) == -3385343466860924788
+
+    # partition_key [:sport, :season_type, :season, :user_id]
+    # cluster_columns [:league_id]
+    sport = ShardInfo.serialize_component(:text, "nfl")
+    season_type = ShardInfo.serialize_component(:text, "regular")
+    season = ShardInfo.serialize_component(:text, "2024")
+    user_id = ShardInfo.serialize_component(:bigint, 7386436132013076480)
+    assert ShardInfo.test_partition_token([sport, season_type, season, user_id]) == -4258149831554983843
   end
 end
