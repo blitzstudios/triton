@@ -73,7 +73,8 @@ defmodule Triton.APM.Tests do
       schema: "test_table",
       result_type: :error,
       is_batch: false,
-      batch_size: 0
+      batch_size: 0,
+      shard_number: -1
     }
 
     assert(actual_apm === expected_apm)
@@ -93,7 +94,8 @@ defmodule Triton.APM.Tests do
       schema: "test_table",
       result_type: :ok,
       is_batch: false,
-      batch_size: 0
+      batch_size: 0,
+      shard_number: -1
     }
 
     assert(actual_apm === expected_apm)
@@ -114,7 +116,8 @@ defmodule Triton.APM.Tests do
       schema: "test_single_keyspace_table",
       result_type: :ok,
       is_batch: false,
-      batch_size: 0
+      batch_size: 0,
+      shard_number: -1
     }
 
     assert(actual_apm === expected_apm)
@@ -134,7 +137,8 @@ defmodule Triton.APM.Tests do
       schema: "test_view",
       result_type: :ok,
       is_batch: false,
-      batch_size: 0
+      batch_size: 0,
+      shard_number: -1
     }
 
     assert(actual_apm === expected_apm)
@@ -163,7 +167,8 @@ defmodule Triton.APM.Tests do
       schema: "test_single_keyspace_table",
       result_type: :ok,
       is_batch: true,
-      batch_size: 10
+      batch_size: 10,
+      shard_number: -1
      }
 
     assert(actual_apm === expected_apm)

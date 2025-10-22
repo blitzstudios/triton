@@ -34,7 +34,12 @@ defmodule Triton.APM.ShardInfo do
     values =
        partition_key
       |> Enum.map(fn(key) ->
-        where[key] && prepared[where[key]]
+        where_key = where[key]
+        if is_nil(where_key) || is_list(where_key) do
+          nil
+        else
+          prepared[where_key]
+        end
       end)
       |> Enum.filter(& &1)
     if length(values) == length(partition_key) do
