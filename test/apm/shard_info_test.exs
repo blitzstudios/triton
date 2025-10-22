@@ -11,17 +11,17 @@ defmodule Triton.APM.ShardInfo.Tests do
       "primary_key" => -1632642444691073360,
       "kremówki" => 4354931215268080151
     } |> Enum.each(fn {key, value} ->
-      assert ShardInfo.test_partition_token([ShardInfo.serialize_component(key)]) == value
+      assert ShardInfo.test_partition_token([ShardInfo.serialize_component(:text, key)]) == value
     end)
     # the following cases use token generation produced by cqlsh, for example:
     # cqlsh:sleeper_test> select token(line_id) from  parlay_line where line_id=7386436132013076480;
     # system.token(line_id)
     # -----------------------
     #  -1446046784528965222
-    assert ShardInfo.test_partition_token([ShardInfo.serialize_component(7386436132013076480)]) == -1446046784528965222
+    assert ShardInfo.test_partition_token([ShardInfo.serialize_component(:bigint, 7386436132013076480)]) == -1446046784528965222
 
-    channel_id = 7386833339577004032 |> ShardInfo.serialize_component()
-    bucket_id = 1245 |> ShardInfo.serialize_component()
+    channel_id = ShardInfo.serialize_component(:bigint, 7386833339577004032)
+    bucket_id = ShardInfo.serialize_component(:int, 1245)
     assert ShardInfo.test_partition_token([channel_id, bucket_id]) == -3385343466860924788
   end
 end

@@ -25,31 +25,37 @@ defmodule Triton.APM.ShardInfo do
   end
 
   defp partition_key(query) do
-    Triton.Metadata.schema(query[:__schema_module__])
+    schema_metadata = Triton.Metadata.schema(query[:__schema_module__])
     |> Map.from_struct()
-    |> Map.get(:__partition_key__)
+
+    Map.get(schema_metadata, :__partition_key__)
+    |> Enum.map(fn key ->
+      {key, schema_metadata[key][:type]}
+    end)
   end
 
   @spec partition_key_values(list(), keyword(), keyword()) :: {:ok, list()} | {:error, :cannot_extract_partition_key_values}
   defp partition_key_values(partition_key, where, prepared) do
     values =
        partition_key
-      |> Enum.map(fn(key) ->
+      |> Enum.map(fn({key, type}) ->
         where_key = where[key]
-        if is_nil(where_key) || is_list(where_key) do
+        if is_nil(where_key) || is_list(where_key) || is_nil(prepared[where_key]) do
           nil
         else
-          prepared[where_key]
+          value = prepared[where_key]
+          serialize_component(type, value)
         end
       end)
       |> Enum.filter(& &1)
     if length(values) == length(partition_key) do
-      {:ok, values |> Enum.map(&serialize_component(&1))}
+      {:ok, values}
     else
       {:error, :cannot_extract_partition_key_values}
     end
   end
 
-  def serialize_component(value) when is_integer(value), do: <<value::integer-size(64)>>
-  def serialize_component(value) when is_binary(value), do: value
+  def serialize_component(type, value) do
+    Xandra.Protocol.V4.encode_query_value(type, value) |> List.last()
+  end
 end
