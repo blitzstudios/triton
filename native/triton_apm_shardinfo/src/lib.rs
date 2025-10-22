@@ -6,6 +6,7 @@ use scylla::routing::partitioner::PartitionerName;
 use scylla::routing::Sharder;
 use scylla::routing::Token;
 use std::num::NonZero;
+use std::env;
 
 static ERROR_VALUE_TOO_LONG: &str = "value too long";
 
@@ -34,7 +35,14 @@ fn compute_partition_token(data: Vec<Binary>) -> Result<Token, &'static str> {
 
 #[rustler::nif]
 fn shard_from_partition_key(data: Vec<Binary>) -> NifResult<u32> {
-    let sharder = Sharder::new(NonZero::new(10).unwrap(), 12);
+    let num_shards = match env::var("SCYLLA_NUM_SHARDS") {
+        Ok(val) => match val.parse::<u16>() {
+            Ok(num_shards) => num_shards,
+            Err(_) => 32,
+        },
+        Err(_) => 32,
+    };
+    let sharder = Sharder::new(NonZero::new(num_shards).unwrap(), 12);
     let partition_token = compute_partition_token(data).map_err(|e| Error::Atom(e))?;
     let shard = sharder.shard_of(partition_token);
     Ok(shard as u32)
