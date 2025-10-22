@@ -51,7 +51,7 @@ defmodule Triton.APM do
         _ -> :unknown
       end
 
-    shard_number = shard_number(query)
+    shard_number = Triton.APM.ShardInfo.shard_number(query)
     IO.inspect(shard_number, label: "shard_number_in_from_query!")
 
     %__MODULE__{
@@ -87,17 +87,5 @@ defmodule Triton.APM do
       dual_keyspace_conn == conn -> dual_keyspace
       true -> nil
     end
-  end
-
-  defp shard_number(query) do
-    schema_module = query[:__schema_module__]
-    partition_key = (Triton.Metadata.schema(schema_module) |> Map.from_struct())[:__partition_key__]
-    IO.inspect(partition_key, label: "partition_key_in_from_query!")
-    IO.inspect(query, label: "query_in_from_query!")
-    partition_key
-      |> Enum.map(fn(key) ->
-        key_in_prepared = query[:where][key]
-        query[:prepared][key_in_prepared]
-    end)
   end
 end
