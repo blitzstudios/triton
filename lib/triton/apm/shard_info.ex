@@ -4,6 +4,7 @@ defmodule Triton.APM.ShardInfo do
   """
 
   use Rustler, otp_app: :triton, crate: :triton_apm_shardinfo
+  require Logger
 
   # When your NIF is loaded, it will override this function.
   def shard_from_partition_key(_data), do: :erlang.nif_error(:nif_not_loaded)
@@ -17,11 +18,11 @@ defmodule Triton.APM.ShardInfo do
           partition_key <- partition_key(query),
           {:ok, partition_key_values} <- partition_key_values(partition_key, where, prepared),
           shard_number when is_integer(shard_number) <- shard_from_partition_key(partition_key_values) # nif can also return an error
-      do
-        shard_number
-      else
-        _ -> -1
-      end
+    do
+      shard_number
+    else
+      _ -> -1
+    end
   end
 
   defp partition_key(query) do
@@ -40,18 +41,30 @@ defmodule Triton.APM.ShardInfo do
 
   @spec partition_key_values(list(), keyword(), keyword()) :: {:ok, list()} | {:error, :cannot_extract_partition_key_values}
   defp partition_key_values(partition_key, where, prepared) do
-    values =
-       partition_key
-      |> Enum.map(fn({key, type}) ->
-        where_key = where[key]
-        if is_nil(where_key) || is_list(where_key) || is_nil(prepared[where_key]) do
-          nil
-        else
-          value = prepared[where_key]
-          serialize_component(type, value)
-        end
-      end)
+    get_value = fn({key, type}, where, prepared) ->
+      # with proper parametrization should be in the 'prepared', but possible to have just in the 'where' block
+      # I fixed a couple that discovered when running tests, but placing a guard here in case there are more cases
+      # not caught by the tests.
+      transitive_get = fn
+        key when is_atom(key) -> prepared[key]
+        key -> key
+      end
+
+      with where_key <- where[key],
+           true <- not is_nil(where_key) and not is_list(where_key),
+           value <- transitive_get.(where_key),
+           false <- is_nil(value)
+      do
+        serialize_component(type, value)
+      else
+        _ -> nil
+      end
+    end
+
+    values = partition_key
+      |> Enum.map(&get_value.(&1, where, prepared))
       |> Enum.filter(& &1)
+
     if length(values) == length(partition_key) do
       {:ok, values}
     else
