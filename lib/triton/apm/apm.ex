@@ -62,7 +62,7 @@ defmodule Triton.APM do
             1
           end
         {:error, _} -> 0
-        _ -> :unknown
+        _ -> 0
       end
 
     %__MODULE__{
