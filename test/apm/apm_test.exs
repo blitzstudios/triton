@@ -4,6 +4,7 @@ defmodule Triton.APM.Tests do
   alias Triton.APM.Tests.TestTable
   alias Triton.APM.Tests.TestSingleKeyspaceTable
   alias Triton.APM.Tests.TestView
+  import ExUnit.CaptureLog
 
   defmodule TestKeyspace do
     use Triton.Keyspace
@@ -44,7 +45,7 @@ defmodule Triton.APM.Tests do
       field :id1, :text
       field :id2, :bigint
       field :data, :text
-      partition_key [:id]
+      partition_key [:id1]
       cluster_columns [:id2]
     end
   end
@@ -129,8 +130,9 @@ defmodule Triton.APM.Tests do
   test "Select view" do
     actual_apm =
       TestView
+      |> prepared(id1: "one", id2: 2)
       |> select(:all)
-      |> where(id1: "one", id2: 2)
+      |> where(id1: :id1, id2: :id2)
       |> Triton.APM.from_query!(TritonTests.Conn, 1000, {:ok, []})
 
     expected_apm = %Triton.APM{
@@ -141,7 +143,7 @@ defmodule Triton.APM.Tests do
       result_type: :ok,
       is_batch: false,
       batch_size: 0,
-      shard_number: -1,
+      shard_number: 1,
       num_rows: 0
     }
 
@@ -179,4 +181,59 @@ defmodule Triton.APM.Tests do
     assert(actual_apm === expected_apm)
   end
 
+  test "logging shard_info works" do
+    logs = capture_log(fn ->
+      Application.put_env(:triton, :debug_shards, [shards: :all, tables: :all])
+
+      TestSingleKeyspaceTable
+      |> prepared(id1: "one", id2: 2)
+      |> select(:all)
+      |> where(id1: :id1, id2: :id2)
+      |> Triton.APM.from_query!(TritonTests.Conn, 1000, {:ok, []})
+    end)
+
+    assert logs =~ "Triton shard info:"
+    assert logs =~ "table: :test_single_keyspace_table"
+    assert logs =~ "shard_number: 24"
+    assert logs =~ "partition_key: [text: \"one\"]"
+  end
+
+  test "logging shard_info captures only configured shards and tables" do
+    logs = capture_log(fn ->
+      Application.put_env(:triton, :debug_shards, [shards: [24], tables: [:test_single_keyspace_table]])
+
+      TestSingleKeyspaceTable
+      |> prepared(id1: "one", id2: 2)
+      |> select(:all)
+      |> where(id1: :id1, id2: :id2)
+      |> Triton.APM.from_query!(TritonTests.Conn, 1000, {:ok, []})
+    end)
+
+    assert logs =~ "Triton shard info:"
+    assert logs =~ "table: :test_single_keyspace_table"
+    assert logs =~ "shard_number: 24"
+    assert logs =~ "partition_key: [text: \"one\"]"
+
+    logs = capture_log(fn ->
+      Application.put_env(:triton, :debug_shards, [shards: [1], tables: [:test_single_keyspace_table]])
+
+      TestSingleKeyspaceTable
+      |> prepared(id1: "one", id2: 2)
+      |> select(:all)
+      |> where(id1: :id1, id2: :id2)
+      |> Triton.APM.from_query!(TritonTests.Conn, 1000, {:ok, []})
+    end)
+    assert logs == ""
+
+    logs = capture_log(fn ->
+      Application.put_env(:triton, :debug_shards, [shards: [1], tables: [:test_single_keyspace_table]])
+
+      TestSingleKeyspaceTable
+      |> prepared(id1: "one", id2: 2)
+      |> select(:all)
+      |> where(id1: :id1, id2: :id2)
+      |> Triton.APM.from_query!(TritonTests.Conn, 1000, {:ok, []})
+    end)
+    assert logs == ""
+  end
 end

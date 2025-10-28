@@ -16,9 +16,11 @@ defmodule Triton.APM.ShardInfo do
           prepared <- Keyword.get(query, :prepared),
           true <- not is_nil(where) and not is_nil(prepared),
           partition_key <- partition_key(query),
-          {:ok, partition_key_values} <- partition_key_values(partition_key, where, prepared),
-          shard_number when is_integer(shard_number) <- shard_from_partition_key(partition_key_values) # nif can also return an error
+          {:ok, pk_values} <- partition_key_values(partition_key, where, prepared),
+          serialized_pk_values <- Enum.map(pk_values, fn {type, value} -> serialize_component(type, value) end),
+          shard_number when is_integer(shard_number) <- shard_from_partition_key(serialized_pk_values) # nif can also return an error
     do
+      maybe_log(query, shard_number, pk_values)
       shard_number
     else
       _ -> -1
@@ -55,7 +57,7 @@ defmodule Triton.APM.ShardInfo do
            value <- transitive_get.(where_key),
            false <- is_nil(value)
       do
-        serialize_component(type, value)
+        {type, value}
       else
         _ -> nil
       end
@@ -70,6 +72,45 @@ defmodule Triton.APM.ShardInfo do
     else
       {:error, :cannot_extract_partition_key_values}
     end
+  end
+
+
+  defp maybe_log(query, shard_number, partition_key) do
+    with debug_config when not is_nil(debug_config) <- Application.get_env(:triton, :debug_shards),
+         {:ok, shards} <- get_shards(debug_config),
+         {:ok, tables} <- get_tables(debug_config),
+         true <- should_log?(shards, tables, query, shard_number) do
+      # want to record table, query, partition key and shard number
+      log_data = %{
+        table: query[:__table__],
+        partition_key: partition_key,
+        shard_number: shard_number
+      }
+      Logger.info("Triton shard info: #{inspect(log_data)}")
+    else
+      _ -> :noop
+    end
+  end
+
+  defp get_shards(debug_config) do
+    case debug_config[:shards] do
+      :all -> {:ok, :all}
+      shards when is_list(shards) -> {:ok, shards}
+      _ -> {:error, :invalid_shards}
+    end
+  end
+
+  defp get_tables(debug_config) do
+    case debug_config[:tables] do
+      :all -> {:ok, :all}
+      tables when is_list(tables) -> {:ok, tables}
+      _ -> {:error, :invalid_tables}
+    end
+  end
+
+  defp should_log?(shards, tables, query, shard_number) do
+    (shards == :all or Enum.member?(shards, shard_number)) and
+    (tables == :all or Enum.member?(tables, query[:__table__]))
   end
 
   def serialize_component(type, value) do
