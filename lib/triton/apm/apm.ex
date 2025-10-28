@@ -8,7 +8,9 @@ defmodule Triton.APM do
     duration_ms: integer(),
     result_type: :ok | :error | :unknown,
     is_batch: boolean(),
-    batch_size: integer()
+    batch_size: integer(),
+    shard_number: integer(),
+    num_rows: integer()
   }
 
   @enforce_keys [:keyspace, :schema, :dml_type, :duration_ms, :result_type]
@@ -19,7 +21,9 @@ defmodule Triton.APM do
     :duration_ms,
     :result_type,
     :is_batch,
-    :batch_size
+    :batch_size,
+    :shard_number,
+    :num_rows
   ]
 
   @callback record(Triton.APM.t()) :: :ok | {:error, any}
@@ -49,6 +53,18 @@ defmodule Triton.APM do
         _ -> :unknown
       end
 
+    num_rows =
+      case result do
+        {:ok, res} ->
+          if is_list(res) do
+            length(res)
+          else
+            1
+          end
+        {:error, _} -> 0
+        _ -> 0
+      end
+
     %__MODULE__{
       keyspace: keyspace!(query, conn) |> to_string,
       dml_type: Triton.Helper.query_type(query) |> to_string,
@@ -56,7 +72,9 @@ defmodule Triton.APM do
       schema: query[:__table__] |> to_string,
       result_type: result_type,
       is_batch: batch_size != :single_query,
-      batch_size: batch_size == :single_query && 0 || batch_size
+      batch_size: batch_size == :single_query && 0 || batch_size,
+      shard_number: Triton.APM.ShardInfo.shard_number(query),
+      num_rows: num_rows
     }
   end
 
