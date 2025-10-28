@@ -74,7 +74,8 @@ defmodule Triton.APM.Tests do
       result_type: :error,
       is_batch: false,
       batch_size: 0,
-      shard_number: -1
+      shard_number: -1,
+      num_rows: 0
     }
 
     assert(actual_apm === expected_apm)
@@ -95,7 +96,8 @@ defmodule Triton.APM.Tests do
       result_type: :ok,
       is_batch: false,
       batch_size: 0,
-      shard_number: -1
+      shard_number: -1,
+      num_rows: 1
     }
 
     assert(actual_apm === expected_apm)
@@ -117,7 +119,8 @@ defmodule Triton.APM.Tests do
       result_type: :ok,
       is_batch: false,
       batch_size: 0,
-      shard_number: -1
+      shard_number: -1,
+      num_rows: 1
     }
 
     assert(actual_apm === expected_apm)
@@ -138,7 +141,8 @@ defmodule Triton.APM.Tests do
       result_type: :ok,
       is_batch: false,
       batch_size: 0,
-      shard_number: -1
+      shard_number: -1,
+      num_rows: 0
     }
 
     assert(actual_apm === expected_apm)
@@ -168,7 +172,8 @@ defmodule Triton.APM.Tests do
       result_type: :ok,
       is_batch: true,
       batch_size: 10,
-      shard_number: -1
+      shard_number: -1,
+      num_rows: 1
      }
 
     assert(actual_apm === expected_apm)

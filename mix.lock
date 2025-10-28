@@ -16,5 +16,5 @@
   "telemetry": {:hex, :telemetry, "1.2.1", "68fdfe8d8f05a8428483a97d7aab2f268aaff24b49e0f599faa091f1d4e7f61c", [:rebar3], [], "hexpm", "dad9ce9d8effc621708f99eac538ef1cbe05d6a874dd741de2e689c47feafed5"},
   "toml": {:hex, :toml, "0.7.0", "fbcd773caa937d0c7a02c301a1feea25612720ac3fa1ccb8bfd9d30d822911de", [:mix], [], "hexpm", "0690246a2478c1defd100b0c9b89b4ea280a22be9a7b313a8a058a2408a2fa70"},
   "vex": {:hex, :vex, "0.9.1", "cb65348ebd1c4002861b65bef36e524c29d9a879c90119b2d0e674e323124277", [:mix], [], "hexpm", "a0f9f3959d127ad6a6a617c3f607ecfb1bc6f3c59f9c3614a901a46d1765bafe"},
-  "xandra": {:git, "https://github.com/blitzstudios/xandra", "34377608d5306f866f908a1585f3e2452f851c49", [ref: "34377608d5306f866f908a1585f3e2452f851c49"]},
+  "xandra": {:git, "https://github.com/blitzstudios/xandra", "b227f75c8775bcff0cd05a257fabc0d3a2311a5f", [ref: "b227f75c8775bcff0cd05a257fabc0d3a2311a5f"]},
 }
