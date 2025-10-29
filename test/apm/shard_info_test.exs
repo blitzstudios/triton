@@ -31,5 +31,14 @@ defmodule Triton.APM.ShardInfo.Tests do
     season = ShardInfo.serialize_component(:text, "2024")
     user_id = ShardInfo.serialize_component(:bigint, 7386436132013076480)
     assert ShardInfo.test_partition_token([sport, season_type, season, user_id]) == -4258149831554983843
+
+    sport = ShardInfo.serialize_component(:text, "nfl")
+    shard=ShardInfo.serialize_component(:smallint, 100)
+    bucket=ShardInfo.serialize_component(:int, 200)
+    bool_flag=ShardInfo.serialize_component(:boolean, true)
+
+    assert ShardInfo.test_partition_token([sport, shard, bucket, bool_flag]) == 1614259030012692814
+    bool_flag=ShardInfo.serialize_component(:boolean, false)
+    assert ShardInfo.test_partition_token([sport, shard, bucket, bool_flag]) == 7282384892949881566
   end
 end

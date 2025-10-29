@@ -113,6 +113,14 @@ defmodule Triton.APM.ShardInfo do
     (tables == :all or Enum.member?(tables, query[:__table__]))
   end
 
+  def serialize_component(:boolean, value) do
+    if value == true do
+      <<1>>
+    else
+      <<0>>
+    end
+  end
+
   def serialize_component(type, value) do
     Xandra.Protocol.V4.encode_query_value(type, value) |> List.last()
   end
