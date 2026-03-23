@@ -23,6 +23,10 @@ defmodule Triton.Validate.Tests do
       field :id1, :text
       field :id2, :bigint
       field :data, :text
+      field :email, :text, validators: [format: "[^@]+@[^@]+"]
+      field :email2, :text, validators: [format: [with: "[^@]+@[^@]+", message: "must be a valid email address"]]
+      field :display_name, :text, validators: [format: ~r/[a-zA-Z0-9]+/]
+      field :display_name2, :text, validators: [format: [with: ~r/[a-zA-Z0-9]+/, message: "must contain only letters and numbers"]]
       partition_key [:id1]
       cluster_columns [:id2]
     end
@@ -117,5 +121,17 @@ defmodule Triton.Validate.Tests do
     result = Triton.Validate.coerce(query)
 
     assert(result === {:ok, query})
+  end
+
+  test "binaries in the format validator are compiled to regex" do
+    schema = Triton.Metadata.fields(TestTable)
+    validators = Triton.Validate.vex_validators(schema)
+    assert(validators === [
+      email: [format: ~r/[^@]+@[^@]+/],
+      email2: [format: [with: ~r/[^@]+@[^@]+/, message: "must be a valid email address"]],
+      display_name: [format: ~r/[a-zA-Z0-9]+/],
+      display_name2: [format: [with: ~r/[a-zA-Z0-9]+/, message: "must contain only letters and numbers"]]
+    ])
+
   end
 end

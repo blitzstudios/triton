@@ -36,7 +36,7 @@ defmodule Triton.Validate do
   end
   def validate(_, query, _), do: {:ok, query}
 
-  defp vex_validators(schema) do
+  def vex_validators(schema) do
     schema
     |> Enum.filter(fn({_, opts}) -> opts[:opts][:validators] end)
     |> Enum.map(fn {field, opts} ->
