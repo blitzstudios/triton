@@ -12,15 +12,15 @@ defmodule Triton.Validate do
       type ->
         case Application.get_env(:triton, :disable_validation) do
           true -> {:ok, query}
-          _ -> validate(type, query, Triton.Metadata.fields(query[:__schema_module__]))
+          _ ->
+            validate(type, query, Triton.Metadata.fields(query[:__schema_module__]))
         end
     end
   end
 
   def validate(:insert, query, schema) do
     data = query[:prepared] && query[:prepared] ++ (query[:insert] |> Enum.filter(fn {_, v} -> !is_atom(v) end)) || query[:insert]
-    vex = schema |> Enum.filter(fn({_, opts}) -> opts[:opts][:validators] end) |> Enum.map(fn {field, opts} -> {field, opts[:opts][:validators]} end)
-    case Vex.errors(data ++ [_vex: vex]) do
+    case Vex.errors(data ++ [_vex: vex_validators(schema)]) do
       [] -> {:ok, query}
       err_list -> {:error, err_list |> Triton.Error.vex_error}
     end
@@ -28,13 +28,39 @@ defmodule Triton.Validate do
   def validate(:update, query, schema) do
     data = query[:prepared] && query[:prepared] ++ (query[:update] |> Enum.filter(fn {_, v} -> !is_atom(v) end)) || query[:update]
     fields_to_validate = data |> Enum.map(&(elem(&1, 0)))
-    vex = schema |> Enum.filter(fn({_, opts}) -> opts[:opts][:validators] end) |> Enum.map(fn {field, opts} -> {field, opts[:opts][:validators]} end) |> Enum.filter(&(elem(&1, 0) in fields_to_validate))
+    vex = vex_validators(schema) |> Enum.filter(&(elem(&1, 0) in fields_to_validate))
     case Vex.errors(data ++ [_vex: vex]) do
       [] -> {:ok, query}
       err_list -> {:error, err_list |> Triton.Error.vex_error}
     end
   end
   def validate(_, query, _), do: {:ok, query}
+
+  defp vex_validators(schema) do
+    schema
+    |> Enum.filter(fn({_, opts}) -> opts[:opts][:validators] end)
+    |> Enum.map(fn {field, opts} ->
+      validators = opts[:opts][:validators]
+      |> Enum.map(fn {k, v} ->
+        case k do
+          :format ->
+            {k, maybe_compile_regex(v)}
+          _ -> {k, v}
+        end
+      end)
+      {field, validators}
+    end)
+  end
+
+  defp maybe_compile_regex(re) when is_binary(re) do
+    Regex.compile!(re)
+  end
+
+  defp maybe_compile_regex([with: re, message: m]) when is_binary(re) do
+    [with: Regex.compile!(re), message: m]
+  end
+
+  defp maybe_compile_regex(v), do: v
 
   defp coerce({:__schema_module__, v}, _), do: {:__schema_module__, v}
   defp coerce({:__table__, v}, _), do: {:__table__, v}
