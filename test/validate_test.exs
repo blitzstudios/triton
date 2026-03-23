@@ -132,6 +132,5 @@ defmodule Triton.Validate.Tests do
       display_name: [format: ~r/[a-zA-Z0-9]+/],
       display_name2: [format: [with: ~r/[a-zA-Z0-9]+/, message: "must contain only letters and numbers"]]
     ])
-
   end
 end

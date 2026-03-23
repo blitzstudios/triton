@@ -12,8 +12,7 @@ defmodule Triton.Validate do
       type ->
         case Application.get_env(:triton, :disable_validation) do
           true -> {:ok, query}
-          _ ->
-            validate(type, query, Triton.Metadata.fields(query[:__schema_module__]))
+          _ -> validate(type, query, Triton.Metadata.fields(query[:__schema_module__]))
         end
     end
   end
@@ -43,8 +42,7 @@ defmodule Triton.Validate do
       validators = opts[:opts][:validators]
       |> Enum.map(fn {k, v} ->
         case k do
-          :format ->
-            {k, maybe_compile_regex(v)}
+          :format -> {k, maybe_compile_regex(v)}
           _ -> {k, v}
         end
       end)
