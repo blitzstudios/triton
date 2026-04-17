@@ -36,10 +36,11 @@ defmodule Triton.Metadata.Test do
   defmodule TestView do
     use Triton.MaterializedView
 
-    materialized_view :test_mv, from: TestTable do
+    materialized_view :test_mv, replicas: 2, from: TestTable do
       fields [
         :id2
       ]
+      Triton.MaterializedView.where "condition"
       partition_key [:id2]
     end
   end
@@ -109,5 +110,9 @@ defmodule Triton.Metadata.Test do
     assert(Triton.Metadata.transform_streams(TestTable) === nil)
     assert(Triton.Metadata.transform_streams(TestTableWithTransformStreams) === true)
     assert(Triton.Metadata.transform_streams(TestTableWithTransformStreamsFalse) === false)
+  end
+
+  test "should get mv_where" do
+    assert(Triton.Metadata.mv_where(TestView) === "condition")
   end
 end

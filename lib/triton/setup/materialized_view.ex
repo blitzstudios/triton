@@ -47,7 +47,7 @@ defmodule Triton.Setup.MaterializedView do
     create_cql(blueprint[:__name__]) <>
     select_cql(blueprint[:__fields__]) <>
     from_cql(blueprint[:__from__]) <>
-    where_cql(blueprint[:__partition_key__], blueprint[:__cluster_columns__]) <>
+    where_cql(blueprint[:__partition_key__], blueprint[:__cluster_columns__], blueprint[:__where__]) <>
     primary_key_cql(blueprint[:__partition_key__], blueprint[:__cluster_columns__]) <>
     with_options_cql(blueprint[:__with_options__])
   end
@@ -59,21 +59,25 @@ defmodule Triton.Setup.MaterializedView do
 
   defp from_cql(module), do: " FROM #{Module.concat(module, Table).__struct__.__name__}"
 
-  defp where_cql(pk, cc) when is_list(pk) and is_list(cc) do
+  defp where_cql(pk, cc, additional_restrictions) do
+    pk = pk || []
+    cc = cc || []
+    additional_restrictions = additional_restrictions || ""
+
     fields_not_null = (pk ++ cc)
       |> Enum.map(fn field -> "#{field} IS NOT NULL" end)
       |> Enum.join(" AND ")
 
-    " WHERE #{fields_not_null}"
-  end
-  defp where_cql(pk, _) when is_list(pk) do
-    fields_not_null = pk
-      |> Enum.map(fn field -> "#{field} IS NOT NULL" end)
-      |> Enum.join(" AND ")
+    predicate =
+     [fields_not_null, additional_restrictions]
+     |> Enum.filter(fn s -> s not in [nil, ""] end)
+     |> Enum.join(" AND ")
 
-    " WHERE #{fields_not_null}"
+    case predicate do
+      "" -> ""
+      _ -> " WHERE #{predicate}"
+    end
   end
-  defp where_cql(_, _), do: ""
 
   defp primary_key_cql(partition_key, cluster_columns) when is_list(partition_key) and is_list(cluster_columns) do
     " PRIMARY KEY((" <> Enum.join(partition_key, ", ") <> "), #{Enum.join(cluster_columns, ", ")})"

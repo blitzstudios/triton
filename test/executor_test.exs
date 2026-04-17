@@ -48,6 +48,20 @@ defmodule Triton.Executor.Tests do
     end
   end
 
+  defmodule TestViewWhere do
+    use Triton.MaterializedView
+    import Triton.Query
+
+    materialized_view :test_mv_where, from: TestTable do
+      fields [
+        :id1, :id2, :data
+      ]
+      Triton.MaterializedView.where "id2 > 0"
+      partition_key [:id2]
+      cluster_columns [:id1]
+    end
+  end
+
   defp execute_cql(cql) do
     {:ok, _apps} = Application.ensure_all_started(:xandra)
     {:ok, conn} =
@@ -61,13 +75,21 @@ defmodule Triton.Executor.Tests do
 
   defp drop_test_keyspace(), do: execute_cql("drop keyspace if exists triton_tests")
   defp truncate_test_table(), do: execute_cql("truncate triton_tests.test_table")
+  defp drop_test_table(), do: execute_cql("drop table triton_tests.test_table")
+  defp drop_test_view(), do: execute_cql("drop materialized view triton_tests.test_mv")
+  defp drop_test_view_where(), do: execute_cql("drop materialized view triton_tests.test_mv_where")
 
   setup do
 #    Application.put_env(:triton, :enable_auto_prepare, true)
-    #drop_test_keyspace()
+    # dropping keyspace disconnects us
+    # drop_test_keyspace()
+#    drop_test_view_where()
+#    drop_test_view()
+#    drop_test_table()
     Triton.Setup.Keyspace.setup(TestKeyspace)
     Triton.Setup.Table.setup(TestTable)
     Triton.Setup.MaterializedView.setup(TestView)
+    Triton.Setup.MaterializedView.setup(TestViewWhere)
     {:ok, _} = truncate_test_table()
     :ok
   end
@@ -164,6 +186,20 @@ defmodule Triton.Executor.Tests do
       |> TestTable.one
 
     assert(actual === {:ok, expected})
+  end
+
+  test "Select mv defined with where" do
+    {:ok, _} = execute_cql("insert into triton_tests.test_table(id1, id2, data) values ('1', 1, 'one')")
+    {:ok, _} = execute_cql("insert into triton_tests.test_table(id1, id2, data) values ('1', 2, 'two')")
+    {:ok, _} = execute_cql("insert into triton_tests.test_table(id1, id2, data) values ('1', 0, 'three')")
+    {:ok, _} = execute_cql("insert into triton_tests.test_table(id1, id2, data) values ('2', -1, 'four')")
+    {:ok, _} = execute_cql("insert into triton_tests.test_table(id1, id2, data) values ('3', -2, '4')")
+
+    assert({:ok, %{id1: "1", id2: 1, data: "one"}} == TestViewWhere |> select(:all) |> where(id2: 1) |> TestTable.one)
+    assert({:ok, %{id1: "1", id2: 2, data: "two"}} == TestViewWhere |> select(:all) |> where(id2: 2) |> TestTable.one)
+    assert({:ok, nil} == TestViewWhere |> select(:all) |> where(id2: 0) |> TestTable.one)
+    assert({:ok, nil} == TestViewWhere |> select(:all) |> where(id2: -1) |> TestTable.one)
+    assert({:ok, nil} == TestViewWhere |> select(:all) |> where(id2: -2) |> TestTable.one)
   end
 
   test "Select transformed" do

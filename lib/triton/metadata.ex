@@ -83,6 +83,10 @@ defmodule Triton.Metadata do
     end
   end
 
+  def mv_where(schema_module) do
+    schema(schema_module).__struct__.__where__
+  end
+
   def transform_streams(schema_module) do
     meta = metadata(schema_module)
     case is_materialized_view(schema_module) do
