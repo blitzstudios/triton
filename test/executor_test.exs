@@ -78,6 +78,8 @@ defmodule Triton.Executor.Tests do
   defp drop_test_table(), do: execute_cql("drop table triton_tests.test_table")
   defp drop_test_view(), do: execute_cql("drop materialized view triton_tests.test_mv")
   defp drop_test_view_where(), do: execute_cql("drop materialized view triton_tests.test_mv_where")
+  defp drop_test_view_replicas(_replica = 1), do: execute_cql("drop materialized view triton_tests.test_mv_replicas")
+  defp drop_test_view_replicas(replica), do: execute_cql("drop materialized view triton_tests.test_mv_replicas_#{replica}")
 
   setup do
 #    Application.put_env(:triton, :enable_auto_prepare, true)

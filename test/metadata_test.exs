@@ -36,11 +36,22 @@ defmodule Triton.Metadata.Test do
   defmodule TestView do
     use Triton.MaterializedView
 
-    materialized_view :test_mv, replicas: 2, from: TestTable do
+    materialized_view :test_mv, from: TestTable do
       fields [
         :id2
       ]
       Triton.MaterializedView.where "condition"
+      partition_key [:id2]
+    end
+  end
+
+  defmodule TestViewWithReplicas do
+    use Triton.MaterializedView
+
+    materialized_view :test_mv_with_replicas, replicas: 2, from: TestTable do
+      fields [
+        :id2
+      ]
       partition_key [:id2]
     end
   end
@@ -114,5 +125,10 @@ defmodule Triton.Metadata.Test do
 
   test "should get mv_where" do
     assert(Triton.Metadata.mv_where(TestView) === "condition")
+  end
+
+  test "should get mv replicas" do
+    assert(Triton.Metadata.replicas(TestView) === 1)
+    assert(Triton.Metadata.replicas(TestViewWithReplicas) === 2)
   end
 end

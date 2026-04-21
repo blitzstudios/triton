@@ -56,6 +56,18 @@ defmodule Triton.Setup.Tests do
     end
   end
 
+  defmodule TestViewReplicas do
+    use Triton.MaterializedView
+    import Triton.Query
+
+    materialized_view :test_mv_replicas, replicas: 2, from: TestTable do
+      fields [
+        :id2, :data
+      ]
+      partition_key [:id2]
+    end
+  end
+
   test "Keyspace cql" do
     cql = Triton.Setup.Keyspace.build_cql(TestKeyspace)
     assert(cql === "CREATE KEYSPACE IF NOT EXISTS triton_tests WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor': 3}")
@@ -74,5 +86,14 @@ defmodule Triton.Setup.Tests do
   test "MV where cql" do
     cql = Triton.Setup.MaterializedView.build_cql(TestViewWhere)
     assert(cql === "CREATE MATERIALIZED VIEW IF NOT EXISTS test_mv_where AS SELECT id2, data FROM test_table WHERE id2 IS NOT NULL AND id2 != 'test' PRIMARY KEY((id2))")
+  end
+
+  test "MV replicas cql" do
+    cql = Triton.Setup.MaterializedView.build_cql(TestViewReplicas)
+    assert(cql === "CREATE MATERIALIZED VIEW IF NOT EXISTS test_mv_replicas AS SELECT id2, data FROM test_table WHERE id2 IS NOT NULL PRIMARY KEY((id2))")
+    cql = Triton.Setup.MaterializedView.build_cql(TestViewReplicas, _replicas = 1)
+    assert(cql === "CREATE MATERIALIZED VIEW IF NOT EXISTS test_mv_replicas AS SELECT id2, data FROM test_table WHERE id2 IS NOT NULL PRIMARY KEY((id2))")
+    cql = Triton.Setup.MaterializedView.build_cql(TestViewReplicas, _replicas = 2)
+    assert(cql === "CREATE MATERIALIZED VIEW IF NOT EXISTS test_mv_replicas_2 AS SELECT id2, data FROM test_table WHERE id2 IS NOT NULL PRIMARY KEY((id2))")
   end
 end
