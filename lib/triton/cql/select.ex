@@ -1,9 +1,11 @@
 defmodule Triton.CQL.Select do
   def build(query) do
-    schema = Triton.Metadata.fields(query[:__schema_module__])
+    schema = query[:__schema_module__]
+    schema_fields = Triton.Metadata.fields(schema)
 
     [
-      select(query[:select], query[:count], query[:__table__], schema),
+      select(query[:select], query[:count], query[:__table__], schema_fields),
+      from(query, schema),
       where(query[:where]),
       order_by(query[:order_by] && List.first(query[:order_by])),
       limit(query[:limit]),
@@ -12,9 +14,9 @@ defmodule Triton.CQL.Select do
     |> IO.iodata_to_binary
   end
 
-  defp select(_, count, table, _) when count === true, do: ["SELECT COUNT(*) FROM ", to_string(table)]
-  defp select(fields, _, table, schema) when is_list(fields) do
-    schema_fields = schema |> Enum.map(fn {k, _} -> to_string(k) end)
+  defp select(_, count, table, _) when count === true, do: ["SELECT COUNT(*)"]
+  defp select(fields, _, table, schema_fields) when is_list(fields) do
+    schema_fields = schema_fields |> Enum.map(fn {k, _} -> to_string(k) end)
     req_fields = fields |> Enum.map(fn k -> to_string(k) end)
     filtered_fields =
       MapSet.intersection(
@@ -24,11 +26,11 @@ defmodule Triton.CQL.Select do
            field, :first -> [field]
            field, acc -> [acc, ", ", field]
          end)
-    ["SELECT ", filtered_fields, " FROM ", to_string(table)]
+    ["SELECT ", filtered_fields]
   end
-  defp select(_, _, table, schema) do
+  defp select(_, _, table, schema_fields) do
     schema_fields =
-      schema
+      schema_fields
       |> Enum.sort_by(fn
            {k, _v} -> k
            k -> k
@@ -40,7 +42,23 @@ defmodule Triton.CQL.Select do
            k, acc -> ["#{k}, " | acc]
       end)
 
-    ["SELECT ", schema_fields, " FROM ", to_string(table)]
+    ["SELECT ", schema_fields]
+  end
+
+  defp from(query, schema) do
+    table = Triton.Metadata.table(schema) |> to_string()
+    replicas = Triton.Metadata.replicas(schema)
+    number = :rand.uniform(replicas)
+
+    from =
+      cond do
+        number >= 2 ->
+          [table, "_", to_string(number)]
+        :else ->
+          table
+      end
+
+    [" FROM ", from]
   end
 
   defp where(fragments) when is_list(fragments) do

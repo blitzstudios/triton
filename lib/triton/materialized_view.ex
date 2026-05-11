@@ -1,7 +1,7 @@
 defmodule Triton.MaterializedView do
   defmacro __using__(_) do
     quote do
-      import Triton.MaterializedView
+      import Triton.MaterializedView, except: [where: 1]
       use Triton.Executor
     end
   end
@@ -20,18 +20,21 @@ defmodule Triton.MaterializedView do
   #   __type__: :materialized_view
   # }
 
-  defmacro materialized_view(name, [from: from], [do: block]) do
+  defmacro materialized_view(name, params, [do: block]) do
+    from = params[:from]
+    replicas = params[:replicas] || 1
+
     quote do
       outer = __MODULE__
-
       defmodule Metadata do
         @metadata []
         Module.put_attribute(__MODULE__, :metadata, [
           { :__type__, :materialized_view },
           { :__table__, unquote(name) },
-          { :__from_metadata__, Module.concat(unquote(from), "Metadata")},
+          { :__from_metadata__, Module.concat(unquote(from), "Metadata") },
           { :__schema_module__, outer },
-          { :__schema__, Module.concat(outer, "MaterializedView")}
+          { :__schema__, Module.concat(outer, "MaterializedView") },
+          { :__replicas__, unquote(replicas) }
         ])
         defstruct Module.get_attribute(__MODULE__, :metadata)
       end
@@ -83,6 +86,15 @@ defmodule Triton.MaterializedView do
     quote do
       Module.put_attribute(__MODULE__, :materialized_view, [
         { :__cluster_columns__, unquote(cols) }
+        | Module.get_attribute(__MODULE__, :materialized_view)
+      ])
+    end
+  end
+
+  defmacro where(predicate) do
+    quote do
+      Module.put_attribute(__MODULE__, :materialized_view, [
+        { :__where__, unquote(predicate) }
         | Module.get_attribute(__MODULE__, :materialized_view)
       ])
     end

@@ -37,43 +37,52 @@ defmodule Triton.Setup.MaterializedView do
     {:ok, _apps} = Application.ensure_all_started(:xandra)
     {:ok, conn} = Xandra.start_link(node_config)
 
-    statement = build_cql(schema_module)
-    Xandra.execute!(conn, "USE #{node_config[:keyspace]};", _params = [])
-    Xandra.execute!(conn, statement, _params = [])
+    replicas = Triton.Metadata.replicas(schema_module)
+    (1..replicas)
+    |> Enum.map(fn replica ->
+      statement = build_cql(schema_module, replica)
+      Xandra.execute!(conn, "USE #{node_config[:keyspace]};", _params = [])
+      Xandra.execute!(conn, statement, _params = [])
+    end)
   end
 
-  def build_cql(schema_module) do
+  def build_cql(schema_module, replica_number \\ 1) do
     blueprint = Triton.Metadata.schema(schema_module).__struct__ |> Map.from_struct
-    create_cql(blueprint[:__name__]) <>
+    create_cql(blueprint[:__name__], replica_number) <>
     select_cql(blueprint[:__fields__]) <>
     from_cql(blueprint[:__from__]) <>
-    where_cql(blueprint[:__partition_key__], blueprint[:__cluster_columns__]) <>
+    where_cql(blueprint[:__partition_key__], blueprint[:__cluster_columns__], blueprint[:__where__]) <>
     primary_key_cql(blueprint[:__partition_key__], blueprint[:__cluster_columns__]) <>
     with_options_cql(blueprint[:__with_options__])
   end
 
-  defp create_cql(name), do: "CREATE MATERIALIZED VIEW IF NOT EXISTS #{name}"
+  defp create_cql(name, _replica = 1), do: "CREATE MATERIALIZED VIEW IF NOT EXISTS #{name}"
+  defp create_cql(name, replica), do: "CREATE MATERIALIZED VIEW IF NOT EXISTS #{name}_#{replica}"
 
   defp select_cql(fields) when is_list(fields), do: " AS SELECT " <> Enum.join(fields, ", ")
   defp select_cql(_), do: " AS SELECT *"
 
   defp from_cql(module), do: " FROM #{Module.concat(module, Table).__struct__.__name__}"
 
-  defp where_cql(pk, cc) when is_list(pk) and is_list(cc) do
+  defp where_cql(pk, cc, additional_restrictions) do
+    pk = pk || []
+    cc = cc || []
+    additional_restrictions = additional_restrictions || ""
+
     fields_not_null = (pk ++ cc)
       |> Enum.map(fn field -> "#{field} IS NOT NULL" end)
       |> Enum.join(" AND ")
 
-    " WHERE #{fields_not_null}"
-  end
-  defp where_cql(pk, _) when is_list(pk) do
-    fields_not_null = pk
-      |> Enum.map(fn field -> "#{field} IS NOT NULL" end)
-      |> Enum.join(" AND ")
+    predicate =
+     [fields_not_null, additional_restrictions]
+     |> Enum.filter(fn s -> s not in [nil, ""] end)
+     |> Enum.join(" AND ")
 
-    " WHERE #{fields_not_null}"
+    case predicate do
+      "" -> ""
+      _ -> " WHERE #{predicate}"
+    end
   end
-  defp where_cql(_, _), do: ""
 
   defp primary_key_cql(partition_key, cluster_columns) when is_list(partition_key) and is_list(cluster_columns) do
     " PRIMARY KEY((" <> Enum.join(partition_key, ", ") <> "), #{Enum.join(cluster_columns, ", ")})"

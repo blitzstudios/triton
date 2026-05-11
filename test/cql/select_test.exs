@@ -39,6 +39,18 @@ defmodule Triton.CQL.Select.Tests do
     end
   end
 
+  defmodule TestViewWithReplicas do
+    use Triton.MaterializedView
+    import Triton.Query
+
+    materialized_view :test_mv_with_replicas, replicas: 5, from: TestTable do
+      fields [
+        :id2
+      ]
+      partition_key [:id2]
+    end
+  end
+
   defmodule TestViewAllFields do
     use Triton.MaterializedView
     import Triton.Query
@@ -293,5 +305,32 @@ defmodule Triton.CQL.Select.Tests do
 
     assert(cql === "SELECT id2 FROM test_mv WHERE id2 = :w_id2_0")
     assert(bindings === [w_id2_0: 10])
+  end
+
+  test "Select * mv with replicas" do
+    query =
+      TestViewWithReplicas
+      |> select(:all)
+      |> where(id2: 10)
+      |> Triton.CQL.Parameterize.parameterize!()
+
+    cql = query |> Triton.CQL.Select.build()
+
+    statements =
+      (0..1000)
+      |> Enum.map(fn _i -> query |> Triton.CQL.Select.build() end)
+      |> Enum.frequencies
+      |> Map.keys
+      |> Enum.sort
+
+    expected = [
+      "SELECT id2 FROM test_mv_with_replicas WHERE id2 = 10",
+      "SELECT id2 FROM test_mv_with_replicas_2 WHERE id2 = 10",
+      "SELECT id2 FROM test_mv_with_replicas_3 WHERE id2 = 10",
+      "SELECT id2 FROM test_mv_with_replicas_4 WHERE id2 = 10",
+      "SELECT id2 FROM test_mv_with_replicas_5 WHERE id2 = 10",
+    ]
+
+    assert(statements == expected)
   end
 end
