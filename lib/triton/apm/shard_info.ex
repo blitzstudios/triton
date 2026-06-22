@@ -30,7 +30,7 @@ defmodule Triton.APM.ShardInfo do
   defp partition_key(query) do
     schema_module = query[:__schema_module__]
 
-    schema_metadata = Triton.Metadata.schema(schema_module)
+    schema_metadata = Triton.Metadata.schema(schema_module).__struct__
     |> Map.from_struct()
 
     fields = Triton.Metadata.fields(schema_module)
