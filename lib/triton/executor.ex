@@ -118,6 +118,12 @@ defmodule Triton.Executor do
   end
 
   defp batch_execute_on_cluster(cluster, queries, options) do
+    Triton.Retry.on_checkout_refused(fn ->
+      batch_execute_on_cluster_once(cluster, queries, options)
+    end)
+  end
+
+  defp batch_execute_on_cluster_once(cluster, queries, options) do
     apm_module = Application.get_env(:triton, :apm_module) || Triton.APM.Noop
 
     cqls =
@@ -297,13 +303,24 @@ defmodule Triton.Executor do
     with {:ok, query} <- Triton.Validate.coerce(query),
          query <- query |> auto_prepare |> Triton.CQL.Parameterize.parameterize!,
          {:ok, type, cql} <- build_cql(query),
-         exec_fn = fn () -> execute_cql(cluster, type, cql, query[:prepared], options) end,
+         exec_fn = fn () -> execute_cql_with_retry(cluster, type, cql, query[:prepared], options) end,
          {duration_ms, result} = Triton.APM.execute(exec_fn),
          _ = Triton.APM.from_query!(query, cluster, duration_ms, result)
              |> Triton.APM.record(apm_module)
     do
       result
     end
+  end
+
+  # Streams are excluded: they return a lazy stream, so a refusal would surface during
+  # enumeration, outside this call.
+  defp execute_cql_with_retry(cluster, :stream, cql, prepared, options) do
+    execute_cql(cluster, :stream, cql, prepared, options)
+  end
+  defp execute_cql_with_retry(cluster, type, cql, prepared, options) do
+    Triton.Retry.on_checkout_refused(fn ->
+      execute_cql(cluster, type, cql, prepared, options)
+    end)
   end
 
   defp build_cql(query) do
