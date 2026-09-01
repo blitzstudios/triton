@@ -5,7 +5,7 @@ defmodule Triton.Executor do
     quote do
       def all(query, options \\ []) do
         case Triton.Executor.execute(query, options) do
-          {:error, err} -> {:error, err.message}
+          {:error, err} -> {:error, Triton.Executor.error_message(err)}
           {:ok, results} -> {:ok, transform_results(query, results, options)}
         end
       end
@@ -14,14 +14,14 @@ defmodule Triton.Executor do
         query = [{:stream, true} | query]
 
         case Triton.Executor.execute(query, options) do
-          {:error, err} -> {:error, err.message}
+          {:error, err} -> {:error, Triton.Executor.error_message(err)}
           {:ok, results} -> {:ok, transform_results(query, results, options)}
         end
       end
 
       def count(query, options \\ []) do
         case Triton.Executor.execute([{:count, true} | query], options) do
-          {:error, err} -> {:error, err.message}
+          {:error, err} -> {:error, Triton.Executor.error_message(err)}
           results -> results
         end
       end
@@ -35,14 +35,14 @@ defmodule Triton.Executor do
 
       def save(query, options \\ []) do
         case Triton.Executor.execute(query, options) do
-          {:error, err} -> {:error, err.message}
+          {:error, err} -> {:error, Triton.Executor.error_message(err)}
           result -> result
         end
       end
 
       def del(query, options \\ []) do
         case Triton.Executor.execute(query, options) do
-          {:error, err} -> {:error, err.message}
+          {:error, err} -> {:error, Triton.Executor.error_message(err)}
           result -> result
         end
       end
@@ -50,7 +50,7 @@ defmodule Triton.Executor do
       def batch_execute(queries, options \\ []) do
         case Triton.Executor.batch_execute(queries, options) do
           {:ok, results} -> {:ok, results}
-          {:error, err} -> {:error, err.message}
+          {:error, err} -> {:error, Triton.Executor.error_message(err)}
         end
       end
 
@@ -116,6 +116,17 @@ defmodule Triton.Executor do
       defp transform_entity(entity, _transforms), do: entity
     end
   end
+
+  @doc """
+  Renders a driver error as the string the generated functions return.
+
+  `Xandra.ConnectionError` is `defexception [:action, :reason]` with no `:message` field,
+  so reading `err.message` raises `KeyError` and masks the real error. Structs that
+  already carry a binary `:message` are returned unchanged so existing strings are stable.
+  """
+  def error_message(%{message: message}) when is_binary(message), do: message
+  def error_message(error) when is_exception(error), do: Exception.message(error)
+  def error_message(other), do: inspect(other)
 
   defp batch_execute_on_cluster(cluster, queries, options) do
     Triton.Retry.on_checkout_refused(fn ->

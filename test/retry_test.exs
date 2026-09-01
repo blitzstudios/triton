@@ -1,6 +1,8 @@
 defmodule Triton.Retry.Tests do
   use ExUnit.Case, async: false
 
+  import ExUnit.CaptureLog
+
   alias Triton.Retry
 
   @refusal {:error, %Xandra.ConnectionError{
@@ -59,6 +61,27 @@ defmodule Triton.Retry.Tests do
 
     assert ^error = Retry.on_checkout_refused(returning(counter, [error]))
     assert count(counter) == 1
+  end
+
+  test "exhausting every attempt logs at :error so it reaches Sentry", %{counter: counter} do
+    Application.put_env(:triton, :connection_retry_attempts, 2)
+
+    log = capture_log(fn -> assert @refusal = Retry.on_checkout_refused(returning(counter, [@refusal])) end)
+
+    assert log =~ "[error]"
+    assert log =~ "refused after 2 attempt(s)"
+    assert count(counter) == 2
+  end
+
+  test "a retry that succeeds does not log at :error", %{counter: counter} do
+    log =
+      capture_log(fn ->
+        assert {:ok, :success} =
+                 Retry.on_checkout_refused(returning(counter, [@refusal, {:ok, :success}]))
+      end)
+
+    refute log =~ "[error]"
+    assert log =~ "[warning]"
   end
 
   test "attempts is clamped to a sane value" do

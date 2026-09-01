@@ -30,16 +30,36 @@ defmodule Triton.Retry do
     on_checkout_refused(fun, attempts())
   end
 
-  def on_checkout_refused(fun, attempts) when attempts <= 1, do: fun.()
+  def on_checkout_refused(fun, attempts) when is_function(fun, 0) and is_integer(attempts) do
+    run(fun, attempts, attempts)
+  end
 
-  def on_checkout_refused(fun, attempts) do
+  # Last attempt: a refusal here means every connection we drew was at capacity, which is a
+  # real failure. Logged at :error so it reaches Sentry with text that groups on the cause,
+  # unlike the KeyError this used to surface as.
+  defp run(fun, remaining, total) when remaining <= 1 do
+    case fun.() do
+      {:error, %Xandra.ConnectionError{reason: :too_many_concurrent_requests}} = refused ->
+        Logger.error(fn ->
+          "Triton connection checkout refused after #{total} attempt(s); every connection " <>
+            "drawn was at max_concurrent_requests_per_connection"
+        end)
+
+        refused
+
+      result ->
+        result
+    end
+  end
+
+  defp run(fun, remaining, total) do
     case fun.() do
       {:error, %Xandra.ConnectionError{reason: :too_many_concurrent_requests}} ->
         Logger.warning(fn ->
-          "Triton retrying after connection checkout refusal, #{attempts - 1} attempt(s) left"
+          "Triton retrying after connection checkout refusal, #{remaining - 1} attempt(s) left"
         end)
 
-        on_checkout_refused(fun, attempts - 1)
+        run(fun, remaining - 1, total)
 
       result ->
         result
