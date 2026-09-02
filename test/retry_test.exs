@@ -1,3 +1,22 @@
+defmodule Triton.Retry.Tests.EchoAPM do
+  @behaviour Triton.APM
+  def record(_apm), do: :ok
+  def count_event(event, labels) do
+    send(:apm_echo, {event, labels})
+    :ok
+  end
+end
+
+# Predates count_event/2 — must be skipped, not crashed, so Triton can ship ahead of the app.
+defmodule Triton.Retry.Tests.LegacyAPM do
+  def record(_apm), do: :ok
+end
+
+defmodule Triton.Retry.Tests.BoomAPM do
+  def record(_apm), do: :ok
+  def count_event(_event, _labels), do: raise("boom")
+end
+
 defmodule Triton.Retry.Tests do
   use ExUnit.Case, async: false
 
@@ -82,6 +101,58 @@ defmodule Triton.Retry.Tests do
 
     refute log =~ "[error]"
     assert log =~ "[warning]"
+  end
+
+  describe "refusal counters" do
+    setup do
+      Process.register(self(), :apm_echo)
+      Application.put_env(:triton, :apm_module, Triton.Retry.Tests.EchoAPM)
+      on_exit(fn -> Application.delete_env(:triton, :apm_module) end)
+      :ok
+    end
+
+    test "a retry that succeeds counts outcome=retried and never exhausted", %{counter: counter} do
+      assert {:ok, :success} =
+               Retry.on_checkout_refused(returning(counter, [@refusal, {:ok, :success}]))
+
+      assert_received {:checkout_refused, %{outcome: "retried"}}
+      refute_received {:checkout_refused, %{outcome: "exhausted"}}
+    end
+
+    test "exhausting attempts counts one exhausted after the retries", %{counter: counter} do
+      Application.put_env(:triton, :connection_retry_attempts, 3)
+
+      assert @refusal = Retry.on_checkout_refused(returning(counter, [@refusal]))
+
+      assert_received {:checkout_refused, %{outcome: "retried"}}
+      assert_received {:checkout_refused, %{outcome: "retried"}}
+      assert_received {:checkout_refused, %{outcome: "exhausted"}}
+      refute_received {:checkout_refused, _}
+    end
+
+    test "a success counts nothing", %{counter: counter} do
+      assert {:ok, :success} = Retry.on_checkout_refused(returning(counter, [{:ok, :success}]))
+
+      refute_received {:checkout_refused, _}
+    end
+  end
+
+  describe "APM implementations that cannot count" do
+    test "an implementation without count_event/2 is skipped, not crashed", %{counter: counter} do
+      Application.put_env(:triton, :apm_module, Triton.Retry.Tests.LegacyAPM)
+      on_exit(fn -> Application.delete_env(:triton, :apm_module) end)
+
+      assert {:ok, :success} =
+               Retry.on_checkout_refused(returning(counter, [@refusal, {:ok, :success}]))
+    end
+
+    test "a raising implementation does not break the retry", %{counter: counter} do
+      Application.put_env(:triton, :apm_module, Triton.Retry.Tests.BoomAPM)
+      on_exit(fn -> Application.delete_env(:triton, :apm_module) end)
+
+      assert {:ok, :success} =
+               Retry.on_checkout_refused(returning(counter, [@refusal, {:ok, :success}]))
+    end
   end
 
   test "attempts is clamped to a sane value" do

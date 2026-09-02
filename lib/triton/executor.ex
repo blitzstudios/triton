@@ -125,7 +125,13 @@ defmodule Triton.Executor do
   already carry a binary `:message` are returned unchanged so existing strings are stable.
   """
   def error_message(%{message: message}) when is_binary(message), do: message
-  def error_message(error) when is_exception(error), do: Exception.message(error)
+  def error_message(error) when is_exception(error) do
+    Exception.message(error)
+  rescue
+    _ -> inspect(error)
+  catch
+    _kind, _reason -> inspect(error)
+  end
   def error_message(other), do: inspect(other)
 
   defp batch_execute_on_cluster(cluster, queries, options) do

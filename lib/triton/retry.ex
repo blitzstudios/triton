@@ -40,6 +40,8 @@ defmodule Triton.Retry do
   defp run(fun, remaining, total) when remaining <= 1 do
     case fun.() do
       {:error, %Xandra.ConnectionError{reason: :too_many_concurrent_requests}} = refused ->
+        count("exhausted")
+
         Logger.error(fn ->
           "Triton connection checkout refused after #{total} attempt(s); every connection " <>
             "drawn was at max_concurrent_requests_per_connection"
@@ -55,6 +57,8 @@ defmodule Triton.Retry do
   defp run(fun, remaining, total) do
     case fun.() do
       {:error, %Xandra.ConnectionError{reason: :too_many_concurrent_requests}} ->
+        count("retried")
+
         Logger.warning(fn ->
           "Triton retrying after connection checkout refusal, #{remaining - 1} attempt(s) left"
         end)
@@ -64,6 +68,13 @@ defmodule Triton.Retry do
       result ->
         result
     end
+  end
+
+  # A counter rather than only a log, because a retry that succeeds is the early warning that
+  # connections are being lost, and warn-level logs do not reliably reach our log sinks.
+  defp count(outcome) do
+    apm_module = Application.get_env(:triton, :apm_module) || Triton.APM.Noop
+    Triton.APM.count_event(:checkout_refused, %{outcome: outcome}, apm_module)
   end
 
   def attempts() do

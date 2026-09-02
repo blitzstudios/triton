@@ -10,6 +10,26 @@ defmodule Triton.Executor.ErrorMessageTests do
     def message(_), do: "not an exception"
   end
 
+  # Exception.message/1 rescues a raising message/1 but NOT a throw or exit, so those would
+  # escape and defeat the never-raise contract.
+  defmodule Thrower do
+    defexception [:reason]
+    @impl true
+    def message(_error), do: throw(:boom)
+  end
+
+  defmodule Exiter do
+    defexception [:reason]
+    @impl true
+    def message(_error), do: exit(:boom)
+  end
+
+  defmodule Raiser do
+    defexception [:reason]
+    @impl true
+    def message(_error), do: raise("boom")
+  end
+
   defp conn_error(reason, action \\ "execute") do
     %Xandra.ConnectionError{action: action, reason: reason}
   end
@@ -83,6 +103,26 @@ defmodule Triton.Executor.ErrorMessageTests do
       result = Executor.error_message(input)
       assert is_binary(result), "expected a binary, got: #{inspect(result)}"
     end
+  end
+
+  test "an exception whose message/1 throws falls back to inspect" do
+    result = Executor.error_message(struct(Thrower, reason: :x))
+
+    assert is_binary(result)
+    assert result =~ "Thrower"
+  end
+
+  test "an exception whose message/1 exits falls back to inspect" do
+    result = Executor.error_message(struct(Exiter, reason: :x))
+
+    assert is_binary(result)
+    assert result =~ "Exiter"
+  end
+
+  test "an exception whose message/1 raises still renders" do
+    result = Executor.error_message(struct(Raiser, reason: :x))
+
+    assert is_binary(result)
   end
 
   test "a non-exception struct exporting message/1 does not raise" do
