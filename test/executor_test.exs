@@ -174,6 +174,36 @@ defmodule Triton.Executor.Tests do
     assert(actual === {:ok, expected})
   end
 
+  # Multi-page selects were only covered for streams; the :select paging loop had no test.
+  test "Select paginated" do
+    rows = for id2 <- 1..5, do: {"paged", id2, "row-#{id2}"}
+
+    Enum.each(rows, fn {id1, id2, data} ->
+      {:ok, _} = execute_cql("insert into triton_tests.test_table(id1, id2, data) values ('#{id1}', #{id2}, '#{data}')")
+    end)
+
+    expected = Enum.map(rows, fn {id1, id2, data} ->
+      %{id1: id1, id2: id2, data: data, map: nil, transformed: ""}
+    end)
+
+    unprepared =
+      TestTable
+      |> select(:all)
+      |> where(id1: "paged")
+      |> TestTable.all(page_size: 1)
+
+    assert unprepared === {:ok, expected}
+
+    prepared =
+      TestTable
+      |> prepared(id1: "paged")
+      |> select(:all)
+      |> where(id1: :id1)
+      |> TestTable.all(page_size: 1)
+
+    assert prepared === {:ok, expected}
+  end
+
   test "Select mv" do
     {:ok, _} = execute_cql("insert into triton_tests.test_table(id1, id2, data) values ('1', 2, 'three')")
     {:ok, _} = execute_cql("insert into triton_tests.test_table(id1, id2, data) values ('4', 5, 'six')")

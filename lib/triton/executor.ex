@@ -334,6 +334,11 @@ defmodule Triton.Executor do
   defp execute_cql_with_retry(cluster, :stream, cql, prepared, options) do
     execute_cql(cluster, :stream, cql, prepared, options)
   end
+  # Selects retry per page inside fetch_pages/3, so a refusal resumes from the paging state
+  # instead of restarting the read. Retrying here too would square the attempts for page 1.
+  defp execute_cql_with_retry(cluster, :select, cql, prepared, options) do
+    execute_cql(cluster, :select, cql, prepared, options)
+  end
   defp execute_cql_with_retry(cluster, type, cql, prepared, options) do
     Triton.Retry.on_checkout_refused(fn ->
       execute_cql(cluster, type, cql, prepared, options)
@@ -374,32 +379,22 @@ defmodule Triton.Executor do
   end
 
   defp execute_cql(cluster, :select, cql, nil, options) do
-    with options <- set_consistency(options, :select),
-      {:ok, page} <- Xandra.Cluster.execute(cluster, cql, [], options),
-      formatted_page = Enum.to_list(page) |> format_results
-    do
-      case page.paging_state do
-        nil -> {:ok, formatted_page}
-        paging_state ->
-          {:ok, results} = execute_cql(cluster, :select, cql, nil, Keyword.put(options, :paging_state, paging_state))
-          {:ok, formatted_page ++ results}
-      end
-    end
+    fetch_pages(set_consistency(options, :select), fn options ->
+      Xandra.Cluster.execute(cluster, cql, [], options)
+    end)
   end
   defp execute_cql(cluster, :select, cql, prepared, options) do
-    Xandra.Cluster.run(cluster, fn conn ->
-      with options <- set_consistency(options, :select),
-        {:ok, statement} <- prepare_query(conn, cql, options),
-        {:ok, page} <- Xandra.execute(conn, statement, atom_to_string_keys(prepared), options),
-        formatted_page = Enum.to_list(page) |> format_results
-      do
-        case page.paging_state do
-          nil -> {:ok, formatted_page}
-          paging_state ->
-            {:ok, results} = execute_cql(cluster, :select, cql, prepared, Keyword.put(options, :paging_state, paging_state))
-            {:ok, formatted_page ++ results}
+    params = atom_to_string_keys(prepared)
+
+    # Preparing inside the per-page checkout, rather than once outside it, because Xandra
+    # caches prepared statements per connection and each page may land on a different one.
+    fetch_pages(set_consistency(options, :select), fn options ->
+      Xandra.Cluster.run(cluster, fn conn ->
+        with {:ok, statement} <- prepare_query(conn, cql, options)
+        do
+          Xandra.execute(conn, statement, params, options)
         end
-      end
+      end)
     end)
   end
 
@@ -439,6 +434,32 @@ defmodule Triton.Executor do
         error -> error |> execute_error
       end
     end)
+  end
+
+  @doc """
+  Fetches every page of a select, calling `fetch` once per page with the paging state threaded
+  through `options`.
+
+  A loop rather than recursion into `execute_cql/5`: that recursion consumed the next page with
+  `{:ok, results} = ...`, so any error on page 2+ raised `MatchError` instead of returning
+  `{:error, _}` the way an error on page 1 does. Each page is also its own retry unit — paging
+  state is server-side and valid on any connection, so a refused page is re-fetched against a
+  fresh connection without discarding the pages already in hand.
+
+  Public only so it can be tested without a live cluster.
+  """
+  def fetch_pages(options, fetch, acc \\ []) do
+    case Triton.Retry.on_checkout_refused(fn -> fetch.(options) end) do
+      {:ok, page} ->
+        acc = [Enum.to_list(page) |> format_results | acc]
+
+        case page.paging_state do
+          nil -> {:ok, acc |> Enum.reverse |> Enum.concat}
+          paging_state -> fetch_pages(Keyword.put(options, :paging_state, paging_state), fetch, acc)
+        end
+
+      error -> error
+    end
   end
 
   defp execute_error({:ok, %Xandra.Page{} = page}) do
@@ -490,11 +511,15 @@ defmodule Triton.Executor do
   """
   Some options aren't accepted for `Xandra.prepare` (like :consistency). This is filtered out here.
   """
+  # A whitelist rather than a delete-list, mirroring how Xandra filters options for its own
+  # re-preparation (deps/xandra/lib/xandra.ex:1204-1207). Xandra.prepare/3 validates against
+  # its schema and *raises* on anything unknown, so an execute-only option that isn't dropped
+  # here takes down the caller: `:page_size` did exactly that on every prepared select. A
+  # whitelist means a future execute option is ignored here instead of raising at query time.
+  @prepare_options [:compressor, :force, :tracing, :custom_payload, :telemetry_metadata, :timeout]
+
   def prepare_query(conn, cql, options) do
-    options = options
-              |> Keyword.delete(:paging_state)
-              |> Keyword.delete(:consistency)
-    Xandra.prepare(conn, cql, options)
+    Xandra.prepare(conn, cql, Keyword.take(options, @prepare_options))
   end
 
   def set_consistency(options, query_type) do
