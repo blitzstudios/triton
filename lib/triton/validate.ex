@@ -8,7 +8,7 @@ defmodule Triton.Validate do
 
   def validate(query) do
     case Triton.Helper.query_type(query) do
-      {:error, err} -> {:error, Triton.Executor.error_message(err)}
+      {:error, err} -> {:error, Triton.Error.message(err)}
       type ->
         case Application.get_env(:triton, :disable_validation) do
           true -> {:ok, query}

@@ -1,7 +1,7 @@
-defmodule Triton.Executor.ErrorMessageTests do
+defmodule Triton.Error.MessageTests do
   use ExUnit.Case, async: true
 
-  alias Triton.Executor
+  alias Triton.Error
 
   # A non-exception struct can still export message/1, and Exception.message/1 requires
   # __exception__: true, so dispatching on function_exported? raised FunctionClauseError.
@@ -100,33 +100,33 @@ defmodule Triton.Executor.ErrorMessageTests do
   for {label, input} <- @every_shape do
     test "never raises and returns a binary: #{label}" do
       input = unquote(Macro.escape(input))
-      result = Executor.error_message(input)
+      result = Error.message(input)
       assert is_binary(result), "expected a binary, got: #{inspect(result)}"
     end
   end
 
   test "an exception whose message/1 throws falls back to inspect" do
-    result = Executor.error_message(struct(Thrower, reason: :x))
+    result = Error.message(struct(Thrower, reason: :x))
 
     assert is_binary(result)
     assert result =~ "Thrower"
   end
 
   test "an exception whose message/1 exits falls back to inspect" do
-    result = Executor.error_message(struct(Exiter, reason: :x))
+    result = Error.message(struct(Exiter, reason: :x))
 
     assert is_binary(result)
     assert result =~ "Exiter"
   end
 
   test "an exception whose message/1 raises still renders" do
-    result = Executor.error_message(struct(Raiser, reason: :x))
+    result = Error.message(struct(Raiser, reason: :x))
 
     assert is_binary(result)
   end
 
   test "a non-exception struct exporting message/1 does not raise" do
-    result = Executor.error_message(struct(NotAnException, reason: :x))
+    result = Error.message(struct(NotAnException, reason: :x))
     assert is_binary(result)
     assert result =~ "NotAnException"
   end
@@ -134,23 +134,23 @@ defmodule Triton.Executor.ErrorMessageTests do
   # Stability: anything that already had a usable message keeps the exact same string,
   # so existing error text does not change.
   test "an existing binary :message passes through byte-identical" do
-    assert Executor.error_message(%Xandra.Error{reason: :invalid, message: "boom"}) == "boom"
-    assert Executor.error_message(%Triton.Error{message: "Invalid input."}) == "Invalid input."
-    assert Executor.error_message(%{message: "Your operation was not applied."}) ==
+    assert Error.message(%Xandra.Error{reason: :invalid, message: "boom"}) == "boom"
+    assert Error.message(%Triton.Error{message: "Invalid input."}) == "Invalid input."
+    assert Error.message(%{message: "Your operation was not applied."}) ==
              "Your operation was not applied."
-    assert Executor.error_message(%RuntimeError{message: "nope"}) == "nope"
+    assert Error.message(%RuntimeError{message: "nope"}) == "nope"
   end
 
   test "a ConnectionError names both the action and the reason" do
-    message = Executor.error_message(conn_error(:too_many_concurrent_requests, "check out connection"))
+    message = Error.message(conn_error(:too_many_concurrent_requests, "check out connection"))
 
     assert message =~ "check out connection"
     assert message =~ "too many requests in flight"
   end
 
   test "unrecognized terms are inspected rather than raising" do
-    assert Executor.error_message({:cluster, :not_connected}) == "{:cluster, :not_connected}"
-    assert Executor.error_message(:oops) == ":oops"
-    assert Executor.error_message(nil) == "nil"
+    assert Error.message({:cluster, :not_connected}) == "{:cluster, :not_connected}"
+    assert Error.message(:oops) == ":oops"
+    assert Error.message(nil) == "nil"
   end
 end

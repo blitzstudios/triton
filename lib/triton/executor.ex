@@ -5,7 +5,7 @@ defmodule Triton.Executor do
     quote do
       def all(query, options \\ []) do
         case Triton.Executor.execute(query, options) do
-          {:error, err} -> {:error, Triton.Executor.error_message(err)}
+          {:error, err} -> {:error, Triton.Error.message(err)}
           {:ok, results} -> {:ok, transform_results(query, results, options)}
         end
       end
@@ -14,14 +14,14 @@ defmodule Triton.Executor do
         query = [{:stream, true} | query]
 
         case Triton.Executor.execute(query, options) do
-          {:error, err} -> {:error, Triton.Executor.error_message(err)}
+          {:error, err} -> {:error, Triton.Error.message(err)}
           {:ok, results} -> {:ok, transform_results(query, results, options)}
         end
       end
 
       def count(query, options \\ []) do
         case Triton.Executor.execute([{:count, true} | query], options) do
-          {:error, err} -> {:error, Triton.Executor.error_message(err)}
+          {:error, err} -> {:error, Triton.Error.message(err)}
           results -> results
         end
       end
@@ -35,14 +35,14 @@ defmodule Triton.Executor do
 
       def save(query, options \\ []) do
         case Triton.Executor.execute(query, options) do
-          {:error, err} -> {:error, Triton.Executor.error_message(err)}
+          {:error, err} -> {:error, Triton.Error.message(err)}
           result -> result
         end
       end
 
       def del(query, options \\ []) do
         case Triton.Executor.execute(query, options) do
-          {:error, err} -> {:error, Triton.Executor.error_message(err)}
+          {:error, err} -> {:error, Triton.Error.message(err)}
           result -> result
         end
       end
@@ -50,7 +50,7 @@ defmodule Triton.Executor do
       def batch_execute(queries, options \\ []) do
         case Triton.Executor.batch_execute(queries, options) do
           {:ok, results} -> {:ok, results}
-          {:error, err} -> {:error, Triton.Executor.error_message(err)}
+          {:error, err} -> {:error, Triton.Error.message(err)}
         end
       end
 
@@ -117,32 +117,12 @@ defmodule Triton.Executor do
     end
   end
 
-  @doc """
-  Renders a driver error as the string the generated functions return.
-
-  `Xandra.ConnectionError` is `defexception [:action, :reason]` with no `:message` field,
-  so reading `err.message` raises `KeyError` and masks the real error. Structs that
-  already carry a binary `:message` are returned unchanged so existing strings are stable.
-  """
-  def error_message(%{message: message}) when is_binary(message), do: message
-  def error_message(error) when is_exception(error) do
-    Exception.message(error)
-  rescue
-    _ -> inspect(error)
-  catch
-    _kind, _reason -> inspect(error)
-  end
-  def error_message(other), do: inspect(other)
-
   defp batch_execute_on_cluster(cluster, queries, options) do
-    Triton.Retry.on_checkout_refused(fn ->
-      batch_execute_on_cluster_once(cluster, queries, options)
-    end)
-  end
-
-  defp batch_execute_on_cluster_once(cluster, queries, options) do
-    apm_module = Application.get_env(:triton, :apm_module) || Triton.APM.Noop
-
+    # Built once, outside the retry: parameterizing and rendering CQL is pure and depends on
+    # nothing about the connection, so repeating it per attempt is wasted work under exactly the
+    # load the retry exists to relieve. The prepares cannot be hoisted with it — Xandra's
+    # prepared-statement cache is per connection (deps/xandra/lib/xandra.ex:531) and a retry
+    # deliberately draws a different connection, so those have to be redone against the new one.
     cqls =
       queries
       |> Enum.map(fn query ->
@@ -151,29 +131,44 @@ defmodule Triton.Executor do
         {cql, query[:prepared]}
       end)
 
+    Triton.Retry.on_checkout_refused(fn ->
+      batch_execute_on_cluster_once(cluster, queries, cqls, options)
+    end)
+  end
+
+  defp batch_execute_on_cluster_once(cluster, queries, cqls, options) do
+    apm_module = Application.get_env(:triton, :apm_module) || Triton.APM.Noop
+
     Xandra.Cluster.run(cluster, fn conn ->
-      batch =
-        cqls
-        |> Enum.reduce(Xandra.Batch.new(), fn ({cql, prepared}, acc) ->
-          case prepared do
-            nil -> Xandra.Batch.add(acc, cql)
-            prepared ->
-              {:ok, statement} = prepare_query(conn, cql, options)
-              Xandra.Batch.add(acc, statement, atom_to_string_keys(prepared))
-          end
-        end)
+      case build_batch(conn, cqls, options) do
+        {:ok, batch} ->
+          exec_fn =
+            fn ->
+              with {:ok, %Xandra.Void{}} <- Xandra.execute(conn, batch, options),
+                   do: {:ok, :success}
+            end
 
-      exec_fn =
-        fn ->
-          with {:ok, %Xandra.Void{}} <- Xandra.execute(conn, batch, options),
-               do: {:ok, :success}
+          {duration_ms, result} = Triton.APM.execute(exec_fn)
+          _ = Triton.APM.from_query!(Enum.at(queries, 0), cluster, duration_ms, result, Enum.count(queries))
+              |> Triton.APM.record(apm_module)
+
+          result
+
+        error -> error
+      end
+    end)
+  end
+
+  defp build_batch(conn, cqls, options) do
+    Enum.reduce_while(cqls, {:ok, Xandra.Batch.new()}, fn
+      {cql, nil}, {:ok, batch} ->
+        {:cont, {:ok, Xandra.Batch.add(batch, cql)}}
+
+      {cql, prepared}, {:ok, batch} ->
+        case prepare_query(conn, cql, options) do
+          {:ok, statement} -> {:cont, {:ok, Xandra.Batch.add(batch, statement, atom_to_string_keys(prepared))}}
+          error -> {:halt, error}
         end
-
-      {duration_ms, result} = Triton.APM.execute(exec_fn)
-      _ = Triton.APM.from_query!(Enum.at(queries, 0), cluster, duration_ms, result, Enum.count(queries))
-          |> Triton.APM.record(apm_module)
-
-      result
     end)
   end
 

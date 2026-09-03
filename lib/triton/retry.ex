@@ -19,6 +19,7 @@ defmodule Triton.Retry do
   require Logger
 
   @default_attempts 3
+  @default_jitter_ms 25
 
   @doc """
   Runs `fun`, retrying while it returns a checkout refusal.
@@ -63,10 +64,29 @@ defmodule Triton.Retry do
           "Triton retrying after connection checkout refusal, #{remaining - 1} attempt(s) left"
         end)
 
+        case retry_delay_ms(remaining, total) do
+          0 -> :ok
+          ms -> Process.sleep(ms)
+        end
+
         run(fun, remaining - 1, total)
 
       result ->
         result
+    end
+  end
+
+  @doc """
+  Milliseconds to wait before the next attempt: 0 before the first retry, a random
+  1..`:connection_retry_jitter_ms` before any later one.
+
+  Set `:connection_retry_jitter_ms` to 0 to retry with no delay at all.
+  """
+  def retry_delay_ms(remaining, total) when remaining >= total, do: 0
+  def retry_delay_ms(_remaining, _total) do
+    case jitter_ms() do
+      0 -> 0
+      ms -> :rand.uniform(ms)
     end
   end
 
@@ -75,6 +95,13 @@ defmodule Triton.Retry do
   defp count(outcome) do
     apm_module = Application.get_env(:triton, :apm_module) || Triton.APM.Noop
     Triton.APM.count_event(:checkout_refused, %{outcome: outcome}, apm_module)
+  end
+
+  def jitter_ms() do
+    case Application.get_env(:triton, :connection_retry_jitter_ms, @default_jitter_ms) do
+      n when is_integer(n) and n >= 0 -> n
+      _ -> @default_jitter_ms
+    end
   end
 
   def attempts() do

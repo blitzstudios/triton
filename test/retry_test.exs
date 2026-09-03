@@ -103,6 +103,71 @@ defmodule Triton.Retry.Tests do
     assert log =~ "[warning]"
   end
 
+  describe "retry delay" do
+    setup do
+      on_exit(fn -> Application.delete_env(:triton, :connection_retry_jitter_ms) end)
+      :ok
+    end
+
+    test "the first retry is immediate" do
+      # remaining == total means no attempt has been consumed yet, so this is retry #1.
+      assert Retry.retry_delay_ms(3, 3) == 0
+    end
+
+    test "later retries wait a random interval within the configured jitter" do
+      Application.put_env(:triton, :connection_retry_jitter_ms, 50)
+
+      delays = for _ <- 1..200, do: Retry.retry_delay_ms(2, 3)
+
+      assert Enum.all?(delays, & &1 >= 1 and &1 <= 50)
+      # Randomized, not a fixed pause: a constant would collapse to one distinct value and
+      # move the whole herd intact rather than spreading it.
+      assert length(Enum.uniq(delays)) > 10
+    end
+
+    test "jitter of 0 disables the wait entirely" do
+      Application.put_env(:triton, :connection_retry_jitter_ms, 0)
+
+      assert Retry.retry_delay_ms(2, 3) == 0
+      assert Retry.retry_delay_ms(1, 3) == 0
+    end
+
+    test "a nonsense jitter setting falls back to the default" do
+      Application.put_env(:triton, :connection_retry_jitter_ms, "soon")
+      assert Retry.jitter_ms() == 25
+
+      Application.put_env(:triton, :connection_retry_jitter_ms, -5)
+      assert Retry.jitter_ms() == 25
+    end
+
+    test "exhausting attempts actually sleeps between the later ones", %{counter: counter} do
+      Application.put_env(:triton, :connection_retry_attempts, 3)
+      Application.put_env(:triton, :connection_retry_jitter_ms, 40)
+
+      {elapsed_us, _} =
+        :timer.tc(fn -> Retry.on_checkout_refused(returning(counter, [@refusal])) end)
+
+      # Three attempts: retry 1 immediate, retry 2 sleeps 1..40ms. Asserting only the lower
+      # bound, since the actual value is random by design.
+      assert count(counter) == 3
+      assert elapsed_us >= 1_000
+      assert elapsed_us < 200_000
+    end
+
+    test "a first-retry success is not delayed", %{counter: counter} do
+      Application.put_env(:triton, :connection_retry_jitter_ms, 500)
+
+      {elapsed_us, result} =
+        :timer.tc(fn ->
+          Retry.on_checkout_refused(returning(counter, [@refusal, {:ok, :success}]))
+        end)
+
+      assert result == {:ok, :success}
+      # The common case — one hot connection, siblings idle — must not pay the jitter.
+      assert elapsed_us < 100_000
+    end
+  end
+
   describe "refusal counters" do
     setup do
       Process.register(self(), :apm_echo)
