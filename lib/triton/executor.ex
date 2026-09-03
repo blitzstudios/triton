@@ -5,7 +5,7 @@ defmodule Triton.Executor do
     quote do
       def all(query, options \\ []) do
         case Triton.Executor.execute(query, options) do
-          {:error, err} -> {:error, err.message}
+          {:error, err} -> {:error, Triton.Error.message(err)}
           {:ok, results} -> {:ok, transform_results(query, results, options)}
         end
       end
@@ -14,14 +14,14 @@ defmodule Triton.Executor do
         query = [{:stream, true} | query]
 
         case Triton.Executor.execute(query, options) do
-          {:error, err} -> {:error, err.message}
+          {:error, err} -> {:error, Triton.Error.message(err)}
           {:ok, results} -> {:ok, transform_results(query, results, options)}
         end
       end
 
       def count(query, options \\ []) do
         case Triton.Executor.execute([{:count, true} | query], options) do
-          {:error, err} -> {:error, err.message}
+          {:error, err} -> {:error, Triton.Error.message(err)}
           results -> results
         end
       end
@@ -35,14 +35,14 @@ defmodule Triton.Executor do
 
       def save(query, options \\ []) do
         case Triton.Executor.execute(query, options) do
-          {:error, err} -> {:error, err.message}
+          {:error, err} -> {:error, Triton.Error.message(err)}
           result -> result
         end
       end
 
       def del(query, options \\ []) do
         case Triton.Executor.execute(query, options) do
-          {:error, err} -> {:error, err.message}
+          {:error, err} -> {:error, Triton.Error.message(err)}
           result -> result
         end
       end
@@ -50,7 +50,7 @@ defmodule Triton.Executor do
       def batch_execute(queries, options \\ []) do
         case Triton.Executor.batch_execute(queries, options) do
           {:ok, results} -> {:ok, results}
-          {:error, err} -> {:error, err.message}
+          {:error, err} -> {:error, Triton.Error.message(err)}
         end
       end
 
@@ -118,8 +118,11 @@ defmodule Triton.Executor do
   end
 
   defp batch_execute_on_cluster(cluster, queries, options) do
-    apm_module = Application.get_env(:triton, :apm_module) || Triton.APM.Noop
-
+    # Built once, outside the retry: parameterizing and rendering CQL is pure and depends on
+    # nothing about the connection, so repeating it per attempt is wasted work under exactly the
+    # load the retry exists to relieve. The prepares cannot be hoisted with it — Xandra's
+    # prepared-statement cache is per connection (deps/xandra/lib/xandra.ex:531) and a retry
+    # deliberately draws a different connection, so those have to be redone against the new one.
     cqls =
       queries
       |> Enum.map(fn query ->
@@ -128,29 +131,44 @@ defmodule Triton.Executor do
         {cql, query[:prepared]}
       end)
 
+    Triton.Retry.on_checkout_refused(fn ->
+      batch_execute_on_cluster_once(cluster, queries, cqls, options)
+    end)
+  end
+
+  defp batch_execute_on_cluster_once(cluster, queries, cqls, options) do
+    apm_module = Application.get_env(:triton, :apm_module) || Triton.APM.Noop
+
     Xandra.Cluster.run(cluster, fn conn ->
-      batch =
-        cqls
-        |> Enum.reduce(Xandra.Batch.new(), fn ({cql, prepared}, acc) ->
-          case prepared do
-            nil -> Xandra.Batch.add(acc, cql)
-            prepared ->
-              {:ok, statement} = prepare_query(conn, cql, options)
-              Xandra.Batch.add(acc, statement, atom_to_string_keys(prepared))
-          end
-        end)
+      case build_batch(conn, cqls, options) do
+        {:ok, batch} ->
+          exec_fn =
+            fn ->
+              with {:ok, %Xandra.Void{}} <- Xandra.execute(conn, batch, options),
+                   do: {:ok, :success}
+            end
 
-      exec_fn =
-        fn ->
-          with {:ok, %Xandra.Void{}} <- Xandra.execute(conn, batch, options),
-               do: {:ok, :success}
+          {duration_ms, result} = Triton.APM.execute(exec_fn)
+          _ = Triton.APM.from_query!(Enum.at(queries, 0), cluster, duration_ms, result, Enum.count(queries))
+              |> Triton.APM.record(apm_module)
+
+          result
+
+        error -> error
+      end
+    end)
+  end
+
+  defp build_batch(conn, cqls, options) do
+    Enum.reduce_while(cqls, {:ok, Xandra.Batch.new()}, fn
+      {cql, nil}, {:ok, batch} ->
+        {:cont, {:ok, Xandra.Batch.add(batch, cql)}}
+
+      {cql, prepared}, {:ok, batch} ->
+        case prepare_query(conn, cql, options) do
+          {:ok, statement} -> {:cont, {:ok, Xandra.Batch.add(batch, statement, atom_to_string_keys(prepared))}}
+          error -> {:halt, error}
         end
-
-      {duration_ms, result} = Triton.APM.execute(exec_fn)
-      _ = Triton.APM.from_query!(Enum.at(queries, 0), cluster, duration_ms, result, Enum.count(queries))
-          |> Triton.APM.record(apm_module)
-
-      result
     end)
   end
 
@@ -297,13 +315,29 @@ defmodule Triton.Executor do
     with {:ok, query} <- Triton.Validate.coerce(query),
          query <- query |> auto_prepare |> Triton.CQL.Parameterize.parameterize!,
          {:ok, type, cql} <- build_cql(query),
-         exec_fn = fn () -> execute_cql(cluster, type, cql, query[:prepared], options) end,
+         exec_fn = fn () -> execute_cql_with_retry(cluster, type, cql, query[:prepared], options) end,
          {duration_ms, result} = Triton.APM.execute(exec_fn),
          _ = Triton.APM.from_query!(query, cluster, duration_ms, result)
              |> Triton.APM.record(apm_module)
     do
       result
     end
+  end
+
+  # Streams are excluded: they return a lazy stream, so a refusal would surface during
+  # enumeration, outside this call.
+  defp execute_cql_with_retry(cluster, :stream, cql, prepared, options) do
+    execute_cql(cluster, :stream, cql, prepared, options)
+  end
+  # Selects retry per page inside fetch_pages/3, so a refusal resumes from the paging state
+  # instead of restarting the read. Retrying here too would square the attempts for page 1.
+  defp execute_cql_with_retry(cluster, :select, cql, prepared, options) do
+    execute_cql(cluster, :select, cql, prepared, options)
+  end
+  defp execute_cql_with_retry(cluster, type, cql, prepared, options) do
+    Triton.Retry.on_checkout_refused(fn ->
+      execute_cql(cluster, type, cql, prepared, options)
+    end)
   end
 
   defp build_cql(query) do
@@ -340,32 +374,22 @@ defmodule Triton.Executor do
   end
 
   defp execute_cql(cluster, :select, cql, nil, options) do
-    with options <- set_consistency(options, :select),
-      {:ok, page} <- Xandra.Cluster.execute(cluster, cql, [], options),
-      formatted_page = Enum.to_list(page) |> format_results
-    do
-      case page.paging_state do
-        nil -> {:ok, formatted_page}
-        paging_state ->
-          {:ok, results} = execute_cql(cluster, :select, cql, nil, Keyword.put(options, :paging_state, paging_state))
-          {:ok, formatted_page ++ results}
-      end
-    end
+    fetch_pages(set_consistency(options, :select), fn options ->
+      Xandra.Cluster.execute(cluster, cql, [], options)
+    end)
   end
   defp execute_cql(cluster, :select, cql, prepared, options) do
-    Xandra.Cluster.run(cluster, fn conn ->
-      with options <- set_consistency(options, :select),
-        {:ok, statement} <- prepare_query(conn, cql, options),
-        {:ok, page} <- Xandra.execute(conn, statement, atom_to_string_keys(prepared), options),
-        formatted_page = Enum.to_list(page) |> format_results
-      do
-        case page.paging_state do
-          nil -> {:ok, formatted_page}
-          paging_state ->
-            {:ok, results} = execute_cql(cluster, :select, cql, prepared, Keyword.put(options, :paging_state, paging_state))
-            {:ok, formatted_page ++ results}
+    params = atom_to_string_keys(prepared)
+
+    # Preparing inside the per-page checkout, rather than once outside it, because Xandra
+    # caches prepared statements per connection and each page may land on a different one.
+    fetch_pages(set_consistency(options, :select), fn options ->
+      Xandra.Cluster.run(cluster, fn conn ->
+        with {:ok, statement} <- prepare_query(conn, cql, options)
+        do
+          Xandra.execute(conn, statement, params, options)
         end
-      end
+      end)
     end)
   end
 
@@ -405,6 +429,32 @@ defmodule Triton.Executor do
         error -> error |> execute_error
       end
     end)
+  end
+
+  @doc """
+  Fetches every page of a select, calling `fetch` once per page with the paging state threaded
+  through `options`.
+
+  A loop rather than recursion into `execute_cql/5`: that recursion consumed the next page with
+  `{:ok, results} = ...`, so any error on page 2+ raised `MatchError` instead of returning
+  `{:error, _}` the way an error on page 1 does. Each page is also its own retry unit — paging
+  state is server-side and valid on any connection, so a refused page is re-fetched against a
+  fresh connection without discarding the pages already in hand.
+
+  Public only so it can be tested without a live cluster.
+  """
+  def fetch_pages(options, fetch, acc \\ []) do
+    case Triton.Retry.on_checkout_refused(fn -> fetch.(options) end) do
+      {:ok, page} ->
+        acc = [Enum.to_list(page) |> format_results | acc]
+
+        case page.paging_state do
+          nil -> {:ok, acc |> Enum.reverse |> Enum.concat}
+          paging_state -> fetch_pages(Keyword.put(options, :paging_state, paging_state), fetch, acc)
+        end
+
+      error -> error
+    end
   end
 
   defp execute_error({:ok, %Xandra.Page{} = page}) do
@@ -456,11 +506,15 @@ defmodule Triton.Executor do
   """
   Some options aren't accepted for `Xandra.prepare` (like :consistency). This is filtered out here.
   """
+  # A whitelist rather than a delete-list, mirroring how Xandra filters options for its own
+  # re-preparation (deps/xandra/lib/xandra.ex:1204-1207). Xandra.prepare/3 validates against
+  # its schema and *raises* on anything unknown, so an execute-only option that isn't dropped
+  # here takes down the caller: `:page_size` did exactly that on every prepared select. A
+  # whitelist means a future execute option is ignored here instead of raising at query time.
+  @prepare_options [:compressor, :force, :tracing, :custom_payload, :telemetry_metadata, :timeout]
+
   def prepare_query(conn, cql, options) do
-    options = options
-              |> Keyword.delete(:paging_state)
-              |> Keyword.delete(:consistency)
-    Xandra.prepare(conn, cql, options)
+    Xandra.prepare(conn, cql, Keyword.take(options, @prepare_options))
   end
 
   def set_consistency(options, query_type) do

@@ -4,4 +4,7 @@ defmodule Triton.APM.Noop do
 
   @impl APM
   def record(apm = %APM{}), do: :ok
+
+  @impl APM
+  def count_event(_event, _labels), do: :ok
 end

@@ -28,21 +28,28 @@ defmodule Triton.APM do
 
   @callback record(Triton.APM.t()) :: :ok | {:error, any}
 
-  def record(apm = %Triton.APM{}, implementation) do
-    try do
-      implementation.record(apm)
-    rescue
-      err -> {:error, err}
-    catch
-      ex -> {:error, ex}
-      :exit, ex -> {:error, ex}
+  @doc """
+  Counts a driver-level event that is not a query, so it cannot be carried by `t/0` (whose
+  keyspace/schema/dml_type/duration are all required).
+
+  Optional: an implementation predating this callback is skipped rather than crashed, so
+  Triton can be bumped ahead of the app that implements it.
+  """
+  @callback count_event(event :: atom(), labels :: map()) :: :ok | {:error, any}
+
+  @optional_callbacks [count_event: 2]
+
+  def count_event(event, labels, implementation)
+      when is_atom(event) and is_map(labels) and is_atom(implementation) do
+    if Code.ensure_loaded?(implementation) and function_exported?(implementation, :count_event, 2) do
+      contain(fn -> implementation.count_event(event, labels) end, "count_event")
+    else
+      :ok
     end
-    |> case do
-         {:error, err} ->
-           Logger.error("Triton apm record error: #{inspect(err)}")
-           :error
-         _ -> :ok
-       end
+  end
+
+  def record(apm = %Triton.APM{}, implementation) do
+    contain(fn -> implementation.record(apm) end, "record")
   end
 
   def from_query!(query, conn, duration_ms, result, batch_size \\ :single_query) do
@@ -99,5 +106,23 @@ defmodule Triton.APM do
       dual_keyspace_conn == conn -> dual_keyspace
       true -> nil
     end
+  end
+  defp contain(fun, label) do
+    try do
+      fun.()
+    rescue
+      err -> {:error, err}
+    catch
+      ex -> {:error, ex}
+      :exit, ex -> {:error, ex}
+    end
+    |> case do
+         {:error, err} ->
+           Logger.error("Triton apm #{label} error: #{inspect(err)}")
+           :error
+
+         _ ->
+           :ok
+       end
   end
 end

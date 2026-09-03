@@ -35,6 +35,29 @@ defmodule Triton.Executor.Tests do
     end
   end
 
+  # Bound to its own single-connection cluster so it can be saturated without touching the
+  # cluster every other test in this file uses.
+  defmodule SaturatedKeyspace do
+    use Triton.Keyspace
+
+    keyspace :triton_tests, conn: SaturatedConn do
+      with_options [
+        replication: "{'class' : 'SimpleStrategy', 'replication_factor': 3}"
+      ]
+    end
+  end
+
+  defmodule SaturatedTable do
+    use Triton.Table
+
+    table :test_table, [keyspace: SaturatedKeyspace] do
+      field :id1, :text
+      field :id2, :bigint
+      partition_key [:id1]
+      cluster_columns [:id2]
+    end
+  end
+
   defmodule TestView do
     use Triton.MaterializedView
     import Triton.Query
@@ -71,6 +94,20 @@ defmodule Triton.Executor.Tests do
       |> Xandra.start_link()
 
     Xandra.execute(conn, cql)
+  end
+
+  # Scylla exposes its live config; Cassandra has no system.config, so fall back to its
+  # documented default rather than failing to read it.
+  defp batch_fail_threshold_kb() do
+    with {:ok, page} <-
+           execute_cql("select value from system.config where name = 'batch_size_fail_threshold_in_kb'"),
+         %{"value" => value} <- page |> Enum.to_list() |> List.first(),
+         {kb, _} <- Integer.parse(value)
+    do
+      kb
+    else
+      _ -> 50
+    end
   end
 
   defp drop_test_keyspace(), do: execute_cql("drop keyspace if exists triton_tests")
@@ -172,6 +209,36 @@ defmodule Triton.Executor.Tests do
       |> TestTable.all
 
     assert(actual === {:ok, expected})
+  end
+
+  # Multi-page selects were only covered for streams; the :select paging loop had no test.
+  test "Select paginated" do
+    rows = for id2 <- 1..5, do: {"paged", id2, "row-#{id2}"}
+
+    Enum.each(rows, fn {id1, id2, data} ->
+      {:ok, _} = execute_cql("insert into triton_tests.test_table(id1, id2, data) values ('#{id1}', #{id2}, '#{data}')")
+    end)
+
+    expected = Enum.map(rows, fn {id1, id2, data} ->
+      %{id1: id1, id2: id2, data: data, map: nil, transformed: ""}
+    end)
+
+    unprepared =
+      TestTable
+      |> select(:all)
+      |> where(id1: "paged")
+      |> TestTable.all(page_size: 1)
+
+    assert unprepared === {:ok, expected}
+
+    prepared =
+      TestTable
+      |> prepared(id1: "paged")
+      |> select(:all)
+      |> where(id1: :id1)
+      |> TestTable.all(page_size: 1)
+
+    assert prepared === {:ok, expected}
   end
 
   test "Select mv" do
@@ -320,11 +387,20 @@ defmodule Triton.Executor.Tests do
     assert(Enum.sort_by(actual, fn r -> r[:id1] end) === expected)
   end
 
+  # The server rejects a batch over batch_size_fail_threshold_in_kb, and that limit varies by
+  # deployment: Cassandra defaults to 50KB, this Scylla is configured to 1024KB. The batch was
+  # a hardcoded 901 rows (~88KB), which clears the first limit and not the second, so the test
+  # passed or failed depending on which server it met. Sizing it from the server's own setting
+  # keeps it meaningful on both.
   test "Insert batch too large" do
+    payload = String.duplicate("x", 1_000)
+    row_bytes = 1_100
+    rows = div(batch_fail_threshold_kb() * 1024, row_bytes) * 2
+
     inserted =
-      100..1000
+      1..rows
       |> Enum.map(fn id ->
-        %{id1: Kernel.to_string(id), id2: id, data: "data!", map: nil, transformed: nil}
+        %{id1: Kernel.to_string(id), id2: id, data: payload, map: nil, transformed: nil}
       end)
      actual =
       inserted
@@ -335,6 +411,81 @@ defmodule Triton.Executor.Tests do
       |> TestTable.batch_execute
 
     assert(actual === {:error, "Batch too large"})
+  end
+
+  # Batch building prepares each statement on the checked-out connection, and every prepare
+  # takes a request slot before Xandra's statement cache is consulted, so a saturated
+  # connection refuses them. That refusal used to hit `{:ok, statement} = prepare_query(...)`
+  # and raise MatchError, which propagated past the retry around batch_execute_on_cluster/3 —
+  # Triton.Retry matches on returned values and cannot see an exception.
+  #
+  # Saturation is driven through Xandra's internal checkout call because it is the only
+  # deterministic way to fill a connection's in-flight slots. If that protocol changes, this
+  # test fails loudly rather than passing vacuously: either the checkout call itself stops
+  # matching {:ok, _state} below, or saturation silently stops working and the batch returns
+  # {:ok, :success}, failing the assertion. It never goes green without exercising the refusal.
+  test "a batch on saturated connections returns an error instead of raising" do
+    {:ok, _} =
+      Xandra.Cluster.start_link(
+        name: SaturatedConn,
+        nodes: ["127.0.0.1"],
+        keyspace: "triton_tests",
+        pool_size: 1,
+        max_concurrent_requests_per_connection: 1,
+        sync_connect: 5_000
+      )
+
+    # An Xandra cluster outlives the test process that linked it, so it has to be killed
+    # explicitly or its saturated connections linger for the rest of the run. Killed rather
+    # than Xandra.Cluster.stop/1, which exits with :shutdown and would fail the callback.
+    on_exit(fn ->
+      Application.delete_env(:triton, :connection_retry_attempts)
+
+      case Process.whereis(SaturatedConn) do
+        nil ->
+          :ok
+
+        pid ->
+          ref = Process.monitor(pid)
+          Process.exit(pid, :shutdown)
+
+          receive do
+            {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
+          after
+            5_000 -> :ok
+          end
+      end
+    end)
+
+    Application.put_env(:triton, :connection_retry_attempts, 1)
+
+    batch = fn ->
+      for {id1, id2} <- [{"sat1", 1}, {"sat2", 2}] do
+        SaturatedTable
+        |> prepared(id1: id1, id2: id2)
+        |> insert(id1: :id1, id2: :id2)
+      end
+      |> SaturatedTable.batch_execute
+    end
+
+    # Control: the harness itself works while the connections are idle.
+    assert batch.() === {:ok, :success}
+
+    # The cluster auto-discovers peers, so pool_size: 1 means one connection *per host*.
+    # Every one of them has to be filled or the checkout just lands on an idle sibling.
+    conns =
+      for _ <- 1..40, do: Xandra.Cluster.run(SaturatedConn, fn conn -> conn end)
+
+    conns = Enum.uniq(conns)
+    assert conns != []
+
+    Enum.each(conns, fn conn ->
+      req_alias = Process.monitor(conn, alias: :reply_demonitor)
+      {:ok, _state} = :gen_statem.call(conn, {:checkout_state_for_next_request, req_alias})
+    end)
+
+    assert {:error, message} = batch.()
+    assert message =~ "too many requests in flight"
   end
 
   test "query options missing a consistency should get set a default one" do
