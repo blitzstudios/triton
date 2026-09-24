@@ -1,6 +1,9 @@
 defmodule Triton.Executor do
   require Logger
 
+  # Cassandra's reply to a conditional write whose IF clause failed; a lost race, not a failure
+  @not_applied "Your operation was not applied."
+
   defmacro __using__(_) do
     quote do
       def all(query, options \\ []) do
@@ -215,6 +218,7 @@ defmodule Triton.Executor do
       result = execute_on_cluster(query, cluster, options)
 
       _ = case result do
+        {:error, %{message: @not_applied}} -> :noop
         {:error, err} -> Logger.error(fn -> "Triton primary execute error: #{inspect(err)}, query: #{inspect(query)}" end)
         _ -> :noop
       end
@@ -409,8 +413,8 @@ defmodule Triton.Executor do
 
   defp execute_error({:ok, %Xandra.Page{} = page}) do
     case page |> Enum.to_list |> List.first do
-      %{"[applied]" => applied} -> if applied, do: {:ok, :success}, else: {:error, %{message: "Your operation was not applied."}}
-      _ -> {:error, %{message: "Your operation was not applied."}}
+      %{"[applied]" => applied} -> if applied, do: {:ok, :success}, else: {:error, %{message: @not_applied}}
+      _ -> {:error, %{message: @not_applied}}
     end
   end
   defp execute_error(error), do: error
